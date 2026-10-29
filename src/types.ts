@@ -33,3 +33,12 @@ export interface FxSettings {
 }
 
 export type VizMode = 'BARS' | 'WAVE';
+
+export interface CustomSample {
+  id: string;
+  name: string;
+  duration: number; // in seconds
+  size: number;     // in bytes
+  buffer: AudioBuffer;
+  createdAt: number;
+}

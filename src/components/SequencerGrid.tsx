@@ -1,5 +1,5 @@
-import React from 'react';
-import { Track } from '../types';
+import React, { useRef } from 'react';
+import { Track, CustomSample } from '../types';
 import { SOUND_LIBRARY, PITCHED_MODES, DRUM_MODES } from '../constants/sounds';
 
 interface SequencerGridProps {
@@ -7,6 +7,7 @@ interface SequencerGridProps {
   grid: number[][];
   currentPlayingStep: number;
   flashedTrackIndex: number | null;
+  customSamples: CustomSample[];
   onToggleStep: (trackIndex: number, stepIndex: number) => void;
   onCycleStepVariation: (trackIndex: number, stepIndex: number) => void;
   onTriggerTrack: (trackIndex: number) => void;
@@ -15,6 +16,7 @@ interface SequencerGridProps {
   onToggleMute: (trackIndex: number) => void;
   onToggleSolo: (trackIndex: number) => void;
   onChangeVolume: (trackIndex: number, vol: number) => void;
+  onUploadSampleForTrack: (file: File, trackIndex: number) => void;
 }
 
 export const SequencerGrid: React.FC<SequencerGridProps> = ({
@@ -22,6 +24,7 @@ export const SequencerGrid: React.FC<SequencerGridProps> = ({
   grid,
   currentPlayingStep,
   flashedTrackIndex,
+  customSamples,
   onToggleStep,
   onCycleStepVariation,
   onTriggerTrack,
@@ -30,7 +33,10 @@ export const SequencerGrid: React.FC<SequencerGridProps> = ({
   onToggleMute,
   onToggleSolo,
   onChangeVolume,
+  onUploadSampleForTrack,
 }) => {
+  const fileInputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
+
   // Group sounds by category for select dropdowns
   const groupedSounds = React.useMemo(() => {
     const groups: Record<string, typeof SOUND_LIBRARY[string][]> = {};
@@ -54,7 +60,7 @@ export const SequencerGrid: React.FC<SequencerGridProps> = ({
         {/* Step Number Header Row */}
         <div className="grid grid-cols-[310px_1fr] gap-3 mb-2 items-center">
           <div className="text-xs font-bold uppercase tracking-wider text-slate-400 px-2 flex items-center justify-between">
-            <span>KEY / ĐỔI ÂM THANH (26 SOUNDS)</span>
+            <span>KEY / ĐỔI ÂM THANH (26 SOUNDS + SAMPLES)</span>
             <span className="text-[10px] font-mono text-slate-500">TUNE / M / S / VOL</span>
           </div>
 
@@ -83,7 +89,11 @@ export const SequencerGrid: React.FC<SequencerGridProps> = ({
         {/* 10 Track Rows */}
         <div className="flex flex-col gap-2">
           {tracks.map((track, tIdx) => {
-            const soundMeta = SOUND_LIBRARY[track.soundId] || { name: 'Sound', sub: '' };
+            const customSample = customSamples.find((cs) => cs.id === track.soundId);
+            const soundMeta = customSample
+              ? { name: customSample.name, sub: `Sample • ${customSample.duration.toFixed(2)}s` }
+              : SOUND_LIBRARY[track.soundId] || { name: 'Sound', sub: '' };
+
             const modes = getTrackModes(tIdx);
             const isFlashed = flashedTrackIndex === tIdx;
 
@@ -109,23 +119,60 @@ export const SequencerGrid: React.FC<SequencerGridProps> = ({
                     >
                       {track.key}
                     </button>
+
                     <div className="min-w-0 flex-1">
-                      <select
-                        value={track.soundId}
-                        onChange={(e) => onChangeSound(tIdx, e.target.value)}
-                        title={`Đổi âm thanh cho Phím ${track.key}`}
-                        className="w-full bg-[#10141f] hover:bg-[#1a2234] text-slate-100 text-xs font-bold px-2 py-1 rounded-md border border-slate-700/80 focus:outline-none focus:border-cyan-400 cursor-pointer truncate"
-                      >
-                        {Object.entries(groupedSounds).map(([cat, items]) => (
-                          <optgroup key={cat} label={cat}>
-                            {items.map((s) => (
-                              <option key={s.id} value={s.id}>
-                                {s.name}
-                              </option>
-                            ))}
-                          </optgroup>
-                        ))}
-                      </select>
+                      <div className="flex items-center gap-1">
+                        <select
+                          value={track.soundId}
+                          onChange={(e) => onChangeSound(tIdx, e.target.value)}
+                          title={`Đổi âm thanh cho Phím ${track.key}`}
+                          className="w-full bg-[#10141f] hover:bg-[#1a2234] text-slate-100 text-xs font-bold px-2 py-1 rounded-md border border-slate-700/80 focus:outline-none focus:border-cyan-400 cursor-pointer truncate"
+                        >
+                          {customSamples.length > 0 && (
+                            <optgroup label="📁 Custom Samples (Tùy chỉnh)">
+                              {customSamples.map((cs) => (
+                                <option key={cs.id} value={cs.id}>
+                                  ⭐ {cs.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {Object.entries(groupedSounds).map(([cat, items]) => (
+                            <optgroup key={cat} label={cat}>
+                              {items.map((s) => (
+                                <option key={s.id} value={s.id}>
+                                  {s.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ))}
+                        </select>
+
+                        {/* Quick Sample Upload Button for this Track */}
+                        <input
+                          type="file"
+                          accept="audio/*,.wav,.mp3,.ogg,.flac,.aac,.m4a"
+                          ref={(el) => {
+                            fileInputRefs.current[tIdx] = el;
+                          }}
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              onUploadSampleForTrack(e.target.files[0], tIdx);
+                              e.target.value = '';
+                            }
+                          }}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => fileInputRefs.current[tIdx]?.click()}
+                          title={`Tải sample âm thanh mới trực tiếp vào Phím ${track.key}`}
+                          className="w-6 h-6 rounded bg-slate-800 hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-300 border border-slate-700 hover:border-cyan-500/50 flex items-center justify-center text-[11px] shrink-0 transition cursor-pointer"
+                        >
+                          ⬆
+                        </button>
+                      </div>
+
                       <div className="text-[10px] text-slate-400 truncate pl-1 mt-0.5">
                         {soundMeta.sub}
                       </div>

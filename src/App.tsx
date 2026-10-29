@@ -5,6 +5,8 @@ import { SequencerGrid } from './components/SequencerGrid';
 import { LivePadsAndFx } from './components/LivePadsAndFx';
 import { Footer } from './components/Footer';
 import { Toast } from './components/Toast';
+import { ExportModal } from './components/ExportModal';
+import { SampleManagerModal } from './components/SampleManagerModal';
 import { audioEngine } from './audio/AudioEngine';
 import {
   INITIAL_TRACKS,
@@ -14,7 +16,7 @@ import {
   PITCHED_MODES,
   DRUM_MODES,
 } from './constants/sounds';
-import { Track, FxSettings, VizMode } from './types';
+import { Track, FxSettings, VizMode, CustomSample } from './types';
 
 export const App: React.FC = () => {
   const [tracks, setTracks] = useState<Track[]>(INITIAL_TRACKS);
@@ -30,6 +32,11 @@ export const App: React.FC = () => {
   const [masterVol, setMasterVol] = useState<number>(85);
   const [currentPreset, setCurrentPreset] = useState<string>('hiphop');
   const [vizMode, setVizMode] = useState<VizMode>('BARS');
+
+  // Custom Samples & Modals
+  const [customSamples, setCustomSamples] = useState<CustomSample[]>([]);
+  const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
+  const [isSampleManagerOpen, setIsSampleManagerOpen] = useState<boolean>(false);
 
   const [fx, setFx] = useState<FxSettings>({
     cutoff: 20000,
@@ -176,8 +183,11 @@ export const App: React.FC = () => {
 
   const handleChangeSound = useCallback(
     (tIdx: number, newSoundId: string) => {
-      if (!SOUND_LIBRARY[newSoundId]) return;
-      const soundMeta = SOUND_LIBRARY[newSoundId];
+      const customSample = customSamples.find((cs) => cs.id === newSoundId);
+      const soundMeta = customSample
+        ? { name: customSample.name, pitched: false }
+        : SOUND_LIBRARY[newSoundId];
+      if (!soundMeta) return;
 
       setTracks((prev) =>
         prev.map((t, idx) => (idx === tIdx ? { ...t, soundId: newSoundId } : t))
@@ -196,7 +206,7 @@ export const App: React.FC = () => {
       triggerPadFlash(tIdx);
       showToast(`🎹 Phím [${tracks[tIdx]?.key}] ➔ ${soundMeta.name}`, '🎹');
     },
-    [showToast, tracks, triggerPadFlash]
+    [customSamples, showToast, tracks, triggerPadFlash]
   );
 
   const handleChangeTune = useCallback((tIdx: number, tune: number) => {
@@ -222,6 +232,76 @@ export const App: React.FC = () => {
       prev.map((t, idx) => (idx === tIdx ? { ...t, volume } : t))
     );
   }, []);
+
+  // Custom Sample Upload Handler
+  const handleUploadSample = useCallback(
+    async (file: File, targetTrackIndex?: number) => {
+      try {
+        const buffer = await audioEngine.decodeAudioFile(file);
+        const sampleId = `custom_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+        audioEngine.setCustomSample(sampleId, buffer);
+
+        const newSample: CustomSample = {
+          id: sampleId,
+          name: file.name.replace(/\.[^/.]+$/, ''),
+          duration: buffer.duration,
+          size: file.size,
+          buffer,
+          createdAt: Date.now(),
+        };
+
+        setCustomSamples((prev) => [...prev, newSample]);
+
+        // If target track is specified or only 1 file uploaded directly
+        if (targetTrackIndex !== undefined && tracks[targetTrackIndex]) {
+          setTracks((prev) =>
+            prev.map((t, idx) => (idx === targetTrackIndex ? { ...t, soundId: sampleId } : t))
+          );
+          audioEngine.triggerInstrument(targetTrackIndex, 1);
+          triggerPadFlash(targetTrackIndex);
+          showToast(`📁 Đã gán sample "${newSample.name}" cho Phím ${tracks[targetTrackIndex].key}!`, '🎉');
+        } else {
+          showToast(`📁 Đã tải sample "${newSample.name}" vào thư viện!`, '✅');
+        }
+      } catch (err) {
+        console.error(err);
+        showToast('⚠️ Không thể giải mã file âm thanh này.', '⚠️');
+      }
+    },
+    [showToast, tracks, triggerPadFlash]
+  );
+
+  const handleDeleteSample = useCallback(
+    (sampleId: string) => {
+      audioEngine.removeCustomSample(sampleId);
+      setCustomSamples((prev) => prev.filter((s) => s.id !== sampleId));
+
+      // Reset any tracks using this custom sample to initial sound
+      setTracks((prev) =>
+        prev.map((t, idx) =>
+          t.soundId === sampleId ? { ...t, soundId: INITIAL_TRACKS[idx].soundId } : t
+        )
+      );
+      showToast('🗑️ Đã xóa sample tùy chỉnh.', '🗑️');
+    },
+    [showToast]
+  );
+
+  const handleAssignSampleToTrack = useCallback(
+    (sampleId: string, trackIndex: number) => {
+      const sample = customSamples.find((s) => s.id === sampleId);
+      if (!sample || !tracks[trackIndex]) return;
+
+      setTracks((prev) =>
+        prev.map((t, idx) => (idx === trackIndex ? { ...t, soundId: sampleId } : t))
+      );
+      audioEngine.triggerInstrument(trackIndex, 1);
+      triggerPadFlash(trackIndex);
+      showToast(`⭐ Đã gán "${sample.name}" vào Phím ${tracks[trackIndex].key}`, '⭐');
+    },
+    [customSamples, showToast, tracks, triggerPadFlash]
+  );
 
   const handleSelectPreset = useCallback(
     (presetKey: string) => {
@@ -325,7 +405,9 @@ export const App: React.FC = () => {
         setTracks((prev) =>
           prev.map((t, idx) => {
             const sId = data.sounds[idx];
-            return sId && SOUND_LIBRARY[sId] ? { ...t, soundId: sId } : t;
+            return sId && (SOUND_LIBRARY[sId] || customSamples.some((cs) => cs.id === sId))
+              ? { ...t, soundId: sId }
+              : t;
           })
         );
       }
@@ -346,7 +428,7 @@ export const App: React.FC = () => {
     } catch {
       showToast('⚠️ Dữ liệu Beat không hợp lệ.', '⚠️');
     }
-  }, [showToast]);
+  }, [customSamples, showToast]);
 
   const handleExportJson = useCallback(() => {
     const sounds = tracks.map((t) => t.soundId);
@@ -417,6 +499,9 @@ export const App: React.FC = () => {
           onSave={handleSave}
           onLoad={handleLoad}
           onExportJson={handleExportJson}
+          onOpenExport={() => setIsExportModalOpen(true)}
+          onOpenSampleManager={() => setIsSampleManagerOpen(true)}
+          customSampleCount={customSamples.length}
         />
 
         <SequencerGrid
@@ -424,6 +509,7 @@ export const App: React.FC = () => {
           grid={grid}
           currentPlayingStep={currentStep}
           flashedTrackIndex={flashedTrack}
+          customSamples={customSamples}
           onToggleStep={handleToggleStep}
           onCycleStepVariation={handleCycleStepVariation}
           onTriggerTrack={handleTriggerTrack}
@@ -432,11 +518,13 @@ export const App: React.FC = () => {
           onToggleMute={handleToggleMute}
           onToggleSolo={handleToggleSolo}
           onChangeVolume={handleChangeVolume}
+          onUploadSampleForTrack={handleUploadSample}
         />
 
         <LivePadsAndFx
           tracks={tracks}
           flashedTrackIndex={flashedTrack}
+          customSamples={customSamples}
           onTriggerTrack={handleTriggerTrack}
           onChangeSound={handleChangeSound}
           fx={fx}
@@ -446,6 +534,31 @@ export const App: React.FC = () => {
       </div>
 
       <Footer />
+
+      {/* Export Audio Modal (WAV / MP3) */}
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        tracks={tracks}
+        grid={grid}
+        bpm={bpm}
+        swing={swing}
+        masterVol={masterVol}
+        fx={fx}
+        customBuffers={audioEngine.getCustomBuffers()}
+        currentPreset={currentPreset}
+      />
+
+      {/* Custom Sample Manager Modal */}
+      <SampleManagerModal
+        isOpen={isSampleManagerOpen}
+        onClose={() => setIsSampleManagerOpen(false)}
+        customSamples={customSamples}
+        tracks={tracks}
+        onUploadSample={handleUploadSample}
+        onDeleteSample={handleDeleteSample}
+        onAssignSampleToTrack={handleAssignSampleToTrack}
+      />
     </div>
   );
 };

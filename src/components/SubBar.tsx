@@ -4,9 +4,19 @@ interface SubBarProps {
   onSave: () => void;
   onLoad: () => void;
   onExportJson: () => void;
+  onOpenExport: () => void;
+  onOpenSampleManager: () => void;
+  customSampleCount: number;
 }
 
-export const SubBar: React.FC<SubBarProps> = ({ onSave, onLoad, onExportJson }) => {
+export const SubBar: React.FC<SubBarProps> = ({
+  onSave,
+  onLoad,
+  onExportJson,
+  onOpenExport,
+  onOpenSampleManager,
+  customSampleCount,
+}) => {
   return (
     <div className="bg-[#10141f] border-b border-slate-800/70 px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
       <div className="flex flex-wrap items-center gap-4 text-slate-400">
@@ -29,7 +39,25 @@ export const SubBar: React.FC<SubBarProps> = ({ onSave, onLoad, onExportJson }) 
         </span>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={onOpenSampleManager}
+          className="px-2.5 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 font-semibold transition cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
+        >
+          <span>📁</span>
+          <span>Samples ({customSampleCount})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenExport}
+          className="px-3 py-1 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold transition cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-md shadow-emerald-500/20"
+        >
+          <span>⬇️</span>
+          <span>Xuất MP3 / WAV</span>
+        </button>
+
         <button
           id="saveLocalBtn"
           type="button"

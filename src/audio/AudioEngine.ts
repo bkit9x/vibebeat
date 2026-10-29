@@ -32,11 +32,34 @@ export class AudioEngine {
   private readonly lookaheadMs = 25.0; // milliseconds
   private visualQueue: Array<{ step: number; time: number }> = [];
 
+  private customBuffers: Map<string, AudioBuffer> = new Map();
+
   // Callbacks
   private onStepChange?: (step: number) => void;
   private onTrackTrigger?: (trackIndex: number) => void;
 
   constructor() {}
+
+  public setCustomSample(id: string, buffer: AudioBuffer) {
+    this.customBuffers.set(id, buffer);
+  }
+
+  public removeCustomSample(id: string) {
+    this.customBuffers.delete(id);
+  }
+
+  public getCustomBuffers(): Map<string, AudioBuffer> {
+    return this.customBuffers;
+  }
+
+  public async decodeAudioFile(file: File): Promise<AudioBuffer> {
+    this.init();
+    if (!this.audioCtx) {
+      throw new Error('Không thể khởi tạo Web Audio Context');
+    }
+    const arrayBuffer = await file.arrayBuffer();
+    return await this.audioCtx.decodeAudioData(arrayBuffer);
+  }
 
   public init() {
     if (this.audioCtx) {
@@ -165,6 +188,36 @@ export class AudioEngine {
 
     const pitchMult = this.semitoneMultiplier(this.fxSettings.pitch + (track.tune || 0) + stepSemitoneOffset);
     const decayMult = this.fxSettings.decay / 100;
+
+    // Check if soundId is a custom uploaded sample
+    if (this.customBuffers.has(soundId)) {
+      const buf = this.customBuffers.get(soundId)!;
+      const src = this.audioCtx.createBufferSource();
+      src.buffer = buf;
+
+      let samplePitchSemitones = this.fxSettings.pitch + (track.tune || 0);
+      if (modeValue > 1) {
+        samplePitchSemitones += (modeValue - 1) * 2;
+      }
+      const rate = this.semitoneMultiplier(samplePitchSemitones);
+      src.playbackRate.setValueAtTime(rate, now);
+
+      const gain = this.audioCtx.createGain();
+      const sampleDur = (buf.duration * decayMult) / rate;
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(vol * 0.95, now + 0.003);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + sampleDur);
+
+      src.connect(gain);
+      gain.connect(this.masterFilterNode);
+      src.start(now);
+      src.stop(now + sampleDur + 0.02);
+
+      if (time === null && this.onTrackTrigger) {
+        this.onTrackTrigger(trackIndex);
+      }
+      return;
+    }
 
     switch (soundId) {
       // Kicks

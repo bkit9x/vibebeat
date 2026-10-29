@@ -1,10 +1,11 @@
 import React from 'react';
-import { Track, FxSettings } from '../types';
+import { Track, FxSettings, CustomSample } from '../types';
 import { SOUND_LIBRARY } from '../constants/sounds';
 
 interface LivePadsAndFxProps {
   tracks: Track[];
   flashedTrackIndex: number | null;
+  customSamples: CustomSample[];
   onTriggerTrack: (trackIndex: number) => void;
   onChangeSound: (trackIndex: number, soundId: string) => void;
   fx: FxSettings;
@@ -15,6 +16,7 @@ interface LivePadsAndFxProps {
 export const LivePadsAndFx: React.FC<LivePadsAndFxProps> = ({
   tracks,
   flashedTrackIndex,
+  customSamples,
   onTriggerTrack,
   onChangeSound,
   fx,
@@ -78,6 +80,15 @@ export const LivePadsAndFx: React.FC<LivePadsAndFxProps> = ({
                     title={`Đổi nhanh âm thanh cho Phím ${track.key}`}
                     className="w-full bg-[#0d111a]/90 hover:bg-slate-900 text-slate-200 text-[10px] font-semibold px-1 py-1 rounded border border-slate-700/80 focus:outline-none focus:border-cyan-400 cursor-pointer mt-1 truncate"
                   >
+                    {customSamples.length > 0 && (
+                      <optgroup label="📁 Custom Samples (Tùy chỉnh)">
+                        {customSamples.map((cs) => (
+                          <option key={cs.id} value={cs.id}>
+                            ⭐ {cs.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                     {Object.entries(groupedSounds).map(([cat, items]) => (
                       <optgroup key={cat} label={cat}>
                         {items.map((s) => (
