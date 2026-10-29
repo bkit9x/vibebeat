@@ -1,0 +1,1900 @@
+<!DOCTYPE html>
+<html lang="vi" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VibeBeat Studio — 16-Step Web Audio Groovebox</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-studio: #0b0d12;
+            --bg-panel: #131722;
+            --bg-step-off: #1c2230;
+            --bg-step-beat: #232a3b;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-studio);
+            color: #e2e8f0;
+            user-select: none;
+            -webkit-user-select: none;
+            overflow-x: hidden;
+        }
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Custom Range Sliders */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            background: #262f45;
+            height: 6px;
+            border-radius: 999px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+            transition: transform 0.1s ease, background-color 0.15s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            background: #7dd3fc;
+        }
+
+        /* Step button transitions & glow effects */
+        .step-btn {
+            transition: all 0.08s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        .step-btn:hover {
+            transform: translateY(-1px);
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        .step-btn:active {
+            transform: scale(0.94);
+        }
+
+        /* Playhead highlight column */
+        .step-playing {
+            outline: 2px solid rgba(255, 255, 255, 0.85) !important;
+            outline-offset: 1px;
+            filter: brightness(1.3);
+        }
+
+        /* Custom Scrollbar for mobile/tablet horizontal grid */
+        .sequencer-scroll::-webkit-scrollbar {
+            height: 8px;
+        }
+        .sequencer-scroll::-webkit-scrollbar-track {
+            background: #0f131d;
+            border-radius: 4px;
+        }
+        .sequencer-scroll::-webkit-scrollbar-thumb {
+            background: #2d3748;
+            border-radius: 4px;
+        }
+        .sequencer-scroll::-webkit-scrollbar-thumb:hover {
+            background: #4a5568;
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.55; }
+        }
+        .recording-dot {
+            animation: pulseGlow 1.2s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-2 sm:p-4 md:p-6">
+
+    <!-- Top Notification Toast -->
+    <div id="toast" class="fixed top-4 right-4 z-50 hidden bg-slate-900/95 border border-cyan-500/50 text-cyan-300 px-4 py-2.5 rounded-xl shadow-2xl text-sm font-medium flex items-center gap-2 backdrop-blur-md transition-all">
+        <span id="toastIcon">✨</span>
+        <span id="toastMsg">Đã tải preset!</span>
+    </div>
+
+    <!-- Main Studio Container -->
+    <div class="max-w-[1440px] w-full mx-auto bg-[#131722] border border-slate-800/90 rounded-2xl shadow-2xl overflow-hidden">
+        
+        <!-- HEADER & MASTER TRANSPORT BAR -->
+        <header class="bg-[#0e121b] border-b border-slate-800/80 p-3 sm:p-5">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                
+                <!-- Brand & Visualizer -->
+                <div class="flex items-center justify-between sm:justify-start gap-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 via-fuchsia-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-fuchsia-500/20 border border-white/10">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h1 class="text-lg sm:text-xl font-extrabold tracking-tight text-white">VIBE<span class="text-cyan-400">BEAT</span> <span class="text-xs font-mono uppercase px-2 py-0.5 bg-slate-800 text-slate-300 rounded border border-slate-700">TR-WEB8</span></h1>
+                            </div>
+                            <p class="text-xs text-slate-400">Pure Web Audio Synthesizer & 16-Step Sequencer</p>
+                        </div>
+                    </div>
+
+                    <!-- Real-Time Audio Visualizer Canvas -->
+                    <div class="relative bg-[#090c12] border border-slate-800 rounded-xl overflow-hidden w-36 sm:w-52 h-12 flex items-center justify-center shadow-inner">
+                        <canvas id="visualizer" class="w-full h-full block"></canvas>
+                        <div class="absolute top-1 left-2 flex items-center gap-1.5 pointer-events-none">
+                            <span id="statusDot" class="w-2 h-2 rounded-full bg-slate-600"></span>
+                            <span id="statusText" class="text-[10px] mono uppercase tracking-wider text-slate-400">STANDBY</span>
+                        </div>
+                        <button id="vizModeBtn" title="Đổi chế độ hiển thị sóng âm" class="absolute bottom-1 right-1.5 text-[9px] mono bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700">
+                            BARS
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Transport Controls (Play, Stop, BPM, Swing, Master Vol) -->
+                <div class="flex flex-wrap items-center gap-2 sm:gap-4 bg-[#151a26] p-2.5 rounded-xl border border-slate-800/90">
+                    
+                    <!-- Play / Stop Button -->
+                    <button id="playBtn" class="flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-sm transition-all shadow-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20 active:scale-95">
+                        <svg id="playIcon" class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        <span id="playText">PLAY</span>
+                    </button>
+
+                    <!-- Step Counter Display -->
+                    <div class="bg-[#090c12] border border-slate-800 px-3 py-1.5 rounded-lg text-center min-w-[72px]">
+                        <div class="text-[10px] text-slate-500 uppercase font-semibold">STEP</div>
+                        <div id="stepDisplay" class="mono text-base font-bold text-amber-400">01 / 16</div>
+                    </div>
+
+                    <!-- BPM Control -->
+                    <div class="flex flex-col gap-1 px-2">
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-slate-400 font-medium">TEMPO</span>
+                            <span id="bpmValue" class="mono font-bold text-cyan-400">120 BPM</span>
+                        </div>
+                        <input id="bpmSlider" type="range" min="60" max="200" value="120" class="w-24 sm:w-28">
+                    </div>
+
+                    <!-- Swing Control -->
+                    <div class="flex flex-col gap-1 px-2">
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-slate-400 font-medium">SWING</span>
+                            <span id="swingValue" class="mono font-bold text-purple-400">0%</span>
+                        </div>
+                        <input id="swingSlider" type="range" min="0" max="60" value="0" class="w-20 sm:w-24">
+                    </div>
+
+                    <!-- Master Volume -->
+                    <div class="flex flex-col gap-1 px-2">
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-slate-400 font-medium">MASTER</span>
+                            <span id="masterVolValue" class="mono font-bold text-emerald-400">85%</span>
+                    <!-- Genre Presets & Pattern Tools -->
+                <div class="flex flex-wrap items-center gap-2">
+                    <select id="presetSelect" class="bg-[#181f2e] hover:bg-[#1f293d] text-slate-200 text-xs sm:text-sm font-medium px-3 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-cyan-500 cursor-pointer">
+                        <option value="hiphop">🔥 Hip-Hop Boom Bap (92 BPM)</option>
+                        <option value="trap">⚡ Trap 808 Banger (140 BPM)</option>
+                        <option value="house">🪩 909 Deep House (124 BPM)</option>
+                        <option value="lofi">☕ Lo-Fi Chill Study (82 BPM)</option>
+                        <option value="acid">🧪 Acid Techno 303 (132 BPM)</option>
+                        <option value="synthwave">🌆 Retro Synthwave (110 BPM)</option>
+                    </select>
+
+                    <button id="randomKitBtn" title="Đổi ngẫu nhiên bộ âm thanh (Sound Kit) cho 10 phím" class="px-3 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/35 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95">
+                        <span>🎛️</span> <span>Đổi Kit</span>
+                    </button>
+
+                    <button id="randomBtn" title="Tạo beat ngẫu nhiên thông minh" class="px-3 py-2.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/35 text-indigo-300 border border-indigo-500/40 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95">
+                        <span>🎲</span> <span>Random Beat</span>
+                    </button>
+
+                    <button id="clearBtn" title="Xóa toàn bộ các bước trên bảng" class="px-3 py-2.5 rounded-xl bg-rose-600/15 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95">
+                        <span>🗑️</span> <span>Clear</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- SUB-BAR: SCALE, PITCH VARIATION HELP & SAVE/EXPORT -->
+        <div class="bg-[#10141f] border-b border-slate-800/70 px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div class="flex flex-wrap items-center gap-4 text-slate-400">
+                <span class="flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-sm bg-cyan-400 inline-block"></span>
+                    <span><strong>Click trái:</strong> Bật / Tắt nhịp</span>
+                </span>
+                <span class="flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block"></span>
+                    <span><strong>Click phải / Shift+Click:</strong> Đổi nốt nhạc (C..C2) hoặc Accent / Biến thể âm</span>
+                </span>
+                <span class="hidden md:inline-flex items-center gap-1.5 text-slate-300">
+                    <span>⌨️ Phím tắt: <strong>[Space]</strong> Play/Stop • <strong>[Phím 1 - 9, 0]</strong> Gõ 10 Drum Pads • Chọn menu trên từng hàng để đổi âm thanh!</span>
+                </span>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button id="saveLocalBtn" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-medium transition">
+                    💾 Lưu Beat
+                </button>
+                <button id="loadLocalBtn" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-medium transition">
+                    📂 Mở Beat đã lưu
+                </button>
+                <button id="exportJsonBtn" class="px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 font-medium transition">
+                    📋 Copy JSON
+                </button>
+            </div>
+        </div>
+
+        <!-- 16-STEP SEQUENCER MATRIX -->
+        <main class="p-3 sm:p-5 overflow-x-auto sequencer-scroll">
+            <div class="min-w-[1040px]">
+                
+                <!-- Step Number Header Row -->
+                <div class="grid grid-cols-[310px_1fr] gap-3 mb-2 items-center">
+                    <div class="text-xs font-bold uppercase tracking-wider text-slate-400 px-2 flex items-center justify-between">
+                        <span>KEY / ĐỔI ÂM THANH (26 SOUNDS)</span>
+                        <span class="text-[10px] mono text-slate-500">TUNE / M / S / VOL</span>
+                    </div>
+
+                    <div id="stepHeaderRow" class="grid grid-cols-16 gap-1.5">
+                        <!-- Generated via JS -->
+                    </div>
+                </div>
+
+                <!-- Instrument Rows Container -->
+                <div id="tracksContainer" class="flex flex-col gap-2">
+                    <!-- Generated via JS -->
+                </div>
+
+            </div>
+        </main>
+
+        <!-- BOTTOM LIVE DRUM PADS & SYNTH PARAMETERS -->
+        <section class="bg-[#0e121b] border-t border-slate-800/80 p-3 sm:p-5">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+                
+                <!-- Live Performance Pads (Keys 1-9, 0) -->
+                <div class="lg:col-span-8">
+                    <div class="flex items-center justify-between mb-2">
+                        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                            <span>🎹 10 LIVE TRIGGER PADS (NHẤN CHUỘT, CHỌN ÂM HOẶC GÕ PHÍM SỐ 1 - 9, 0)</span>
+                        </h2>
+                        <span class="text-[11px] text-cyan-400/90 mono">Đổi âm thanh trực tiếp trên từng Pad hoặc từng hàng</span>
+                    </div>
+                    <div id="livePadsContainer" class="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-2">
+                        <!-- Generated via JS -->
+                    </div>
+                </div>
+
+                <!-- Master Filter & Sound Character Controls -->
+                <div class="lg:col-span-4 bg-[#141926] border border-slate-800 rounded-xl p-3.5 flex flex-col justify-between gap-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold uppercase tracking-wider text-cyan-400">🎛️ SOUND SHAPER / FX</span>
+                        <button id="resetFxBtn" class="text-[11px] text-slate-400 hover:text-white underline">Reset FX</button>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="flex flex-col gap-1">
+                            <div class="flex justify-between text-xs">
+                                <span class="text-slate-400">LPF CUTOFF</span>
+                                <span id="cutoffVal" class="mono text-cyan-300">20.0 kHz</span>
+                            </div>
+                            <input id="cutoffSlider" type="range" min="250" max="20000" value="20000">
+                        </div>
+
+                        <div class="flex flex-col gap-1">
+                            <div class="flex justify-between text-xs">
+                                <span class="text-slate-400">DECAY / RELEASE</span>
+                                <span id="decayVal" class="mono text-amber-300">100%</span>
+                            </div>
+                            <input id="decaySlider" type="range" min="40" max="180" value="100">
+                        </div>
+
+                        <div class="flex flex-col gap-1">
+                            <div class="flex justify-between text-xs">
+                                <span class="text-slate-400">PUNCH / DRIVE</span>
+                                <span id="driveVal" class="mono text-rose-300">15%</span>
+                            </div>
+                            <input id="driveSlider" type="range" min="0" max="100" value="15">
+                        </div>
+
+                        <div class="flex flex-col gap-1">
+                            <div class="flex justify-between text-xs">
+                                <span class="text-slate-400">TUNE SHIFT</span>
+                                <span id="pitchVal" class="mono text-emerald-300">0 ST</span>
+                            </div>
+                            <input id="pitchSlider" type="range" min="-12" max="12" value="0">
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+    </div>
+
+    <!-- Footer -->
+    <footer class="max-w-[1440px] w-full mx-auto mt-3 px-2 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
+        <div>VibeBeat Studio • 10 Phím (1-9, 0) • 26 Bộ Tổng Hợp Âm Thanh Web Audio API Thời Gian Thực</div>
+        <div class="mono">Mẹo: Chọn bất kỳ âm thanh nào từ menu thả xuống trên từng hàng hoặc bấm "🎛️ Đổi Kit" để khám phá âm mới!</div>
+    </footer>
+
+    <!-- Tailwind Grid 16 utility support -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    gridTemplateColumns: {
+                        '16': 'repeat(16, minmax(0, 1fr))',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- MAIN APPLICATION & SYNTHESIZER ENGINE -->
+    <script>
+        /**************************************************************
+         * 1. DIVERSE SOUND LIBRARY (26 PROCEDURAL WEB AUDIO SOUNDS)
+         **************************************************************/
+        const PITCHED_MODES = ['', 'C', 'D', 'Eb', 'F', 'G', 'Ab', 'Bb', 'C+'];
+        const BASS_FREQS   = [0, 65.41, 73.42, 77.78, 87.31, 98.00, 103.83, 116.54, 130.81];
+        const SYNTH_FREQS  = [0, 261.63, 293.66, 311.13, 349.23, 392.00, 415.30, 466.16, 523.25];
+        const DRUM_MODES   = ['', 'ACC', 'VAR', 'HI', 'LOW'];
+
+        const SOUND_LIBRARY = {
+            // --- KICKS ---
+            kick808:   { id: 'kick808',   category: '🥁 Kicks', name: 'Kick 808 Sub',    sub: 'Deep Boom Sub',    pitched: false },
+            kick909:   { id: 'kick909',   category: '🥁 Kicks', name: 'Kick 909 Punch',  sub: 'Techno/House',     pitched: false },
+            kickDry:   { id: 'kickDry',   category: '🥁 Kicks', name: 'Acoustic Kick',   sub: 'Warm Boom Bap',    pitched: false },
+            kickHard:  { id: 'kickHard',  category: '🥁 Kicks', name: 'Hard Dist Kick',  sub: 'Overdrive Gabb',   pitched: false },
+
+            // --- SNARES & CLAPS ---
+            snareCrisp:{ id: 'snareCrisp',category: '💥 Snares & Claps', name: 'Snare Crisp',    sub: 'Analog Snap',      pitched: false },
+            snare808:  { id: 'snare808',  category: '💥 Snares & Claps', name: 'Snare 808',      sub: 'Tight Hip-Hop',    pitched: false },
+            rimshot:   { id: 'rimshot',   category: '💥 Snares & Claps', name: 'Lo-Fi Rimshot',  sub: 'Woody Click',      pitched: false },
+            clapStudio:{ id: 'clapStudio',category: '💥 Snares & Claps', name: 'Hand Clap',      sub: '808 Multi-Burst',  pitched: false },
+            clapFat:   { id: 'clapFat',   category: '💥 Snares & Claps', name: 'Fat Arena Clap', sub: 'Wide Reverb Tail', pitched: false },
+
+            // --- HI-HATS & CYMBALS ---
+            hatClosed: { id: 'hatClosed', category: '✨ Hi-Hats & Cymbals', name: 'Closed Hat',  sub: 'Tight Metallic',   pitched: false },
+            hatOpen:   { id: 'hatOpen',   category: '✨ Hi-Hats & Cymbals', name: 'Open Hat 909',sub: 'Long Shimmer',     pitched: false },
+            shaker:    { id: 'shaker',    category: '✨ Hi-Hats & Cymbals', name: 'Crisp Shaker',sub: 'Groove Brush',     pitched: false },
+            rideCym:   { id: 'rideCym',   category: '✨ Hi-Hats & Cymbals', name: 'Ride Cymbal', sub: 'Metallic Bell',    pitched: false },
+            crashCym:  { id: 'crashCym',  category: '✨ Hi-Hats & Cymbals', name: 'Crash Splash',sub: 'Bright Wash',      pitched: false },
+
+            // --- PERCUSSION & FX ---
+            tomLow:    { id: 'tomLow',    category: '🪘 Percussion & FX', name: 'Floor Tom',     sub: 'Deep Analog Tom',  pitched: false },
+            tomHi:     { id: 'tomHi',     category: '🪘 Percussion & FX', name: 'Hi Conga/Tom',  sub: 'Bouncy Perc',      pitched: false },
+            cowbell:   { id: 'cowbell',   category: '🪘 Percussion & FX', name: '808 Cowbell',   sub: 'Phonk Dual-Osc',   pitched: false },
+            clave:     { id: 'clave',     category: '🪘 Percussion & FX', name: 'Wood Clave',    sub: 'Latin Click',      pitched: false },
+            laserZap:  { id: 'laserZap',  category: '🪘 Percussion & FX', name: 'Laser Synth FX',sub: 'Sci-Fi Sweep',     pitched: false },
+            vinylHit:  { id: 'vinylHit',  category: '🪘 Percussion & FX', name: 'Vinyl Dust Hit',sub: 'Lo-Fi Texture',    pitched: false },
+
+            // --- BASS SYNTHS (PITCHED) ---
+            bassSub:   { id: 'bassSub',   category: '🎸 Bass Synths', name: 'Sub Bass',          sub: 'Deep Sine/Saw',    pitched: true },
+            bassAcid:  { id: 'bassAcid',  category: '🎸 Bass Synths', name: 'Acid 303 Bass',     sub: 'Resonant Squelch', pitched: true },
+            bassReese: { id: 'bassReese', category: '🎸 Bass Synths', name: 'Reese Detune',      sub: 'Wide Dark Bass',   pitched: true },
+            bassSlap:  { id: 'bassSlap',  category: '🎸 Bass Synths', name: 'FM Funk Bass',      sub: 'Percussive Pluck', pitched: true },
+
+            // --- MELODIC SYNTHS (PITCHED) ---
+            synthPluck:{ id: 'synthPluck',category: '🎹 Melodic Synths', name: 'Synth Pluck',    sub: 'Minor Stab',       pitched: true },
+            synthChord:{ id: 'synthChord',category: '🎹 Melodic Synths', name: 'Warm Chord Pad', sub: 'Lush Minor 7th',   pitched: true },
+            synthLead: { id: 'synthLead', category: '🎹 Melodic Synths', name: 'Retro Saw Lead', sub: '80s Synthwave',    pitched: true },
+            synthBell: { id: 'synthBell', category: '🎹 Melodic Synths', name: 'FM Crystal Bell',sub: 'Kalimba / Chime',  pitched: true },
+            synthArp:  { id: 'synthArp',  category: '🎹 Melodic Synths', name: 'Chiptune Blip',  sub: '8-Bit Arcade',     pitched: true }
+        };
+
+        // 10 Tracks mapped to keys 1, 2, 3, 4, 5, 6, 7, 8, 9, 0
+        const TRACKS = [
+            { id: 'track1', key: '1', soundId: 'kick808',    color: '#f43f5e', glow: 'rgba(244, 63, 94, 0.55)',  volume: 0.95, tune: 0, muted: false, solo: false },
+            { id: 'track2', key: '2', soundId: 'snareCrisp', color: '#f59e0b', glow: 'rgba(245, 158, 11, 0.55)', volume: 0.85, tune: 0, muted: false, solo: false },
+            { id: 'track3', key: '3', soundId: 'hatClosed',  color: '#06b6d4', glow: 'rgba(6, 182, 212, 0.55)',  volume: 0.72, tune: 0, muted: false, solo: false },
+            { id: 'track4', key: '4', soundId: 'hatOpen',    color: '#3b82f6', glow: 'rgba(59, 130, 246, 0.55)', volume: 0.68, tune: 0, muted: false, solo: false },
+            { id: 'track5', key: '5', soundId: 'clapStudio', color: '#ec4899', glow: 'rgba(236, 72, 153, 0.55)', volume: 0.80, tune: 0, muted: false, solo: false },
+            { id: 'track6', key: '6', soundId: 'tomLow',     color: '#a855f7', glow: 'rgba(168, 85, 247, 0.55)', volume: 0.78, tune: 0, muted: false, solo: false },
+            { id: 'track7', key: '7', soundId: 'cowbell',    color: '#14b8a6', glow: 'rgba(20, 184, 166, 0.55)', volume: 0.72, tune: 0, muted: false, solo: false },
+            { id: 'track8', key: '8', soundId: 'bassSub',    color: '#10b981', glow: 'rgba(16, 185, 129, 0.55)', volume: 0.86, tune: 0, muted: false, solo: false },
+            { id: 'track9', key: '9', soundId: 'synthPluck', color: '#eab308', glow: 'rgba(234, 179, 8, 0.55)',  volume: 0.76, tune: 0, muted: false, solo: false },
+            { id: 'track0', key: '0', soundId: 'synthLead',  color: '#6366f1', glow: 'rgba(99, 102, 241, 0.55)', volume: 0.74, tune: 0, muted: false, solo: false }
+        ];
+
+        function getTrackModes(trackIndex) {
+            const sound = SOUND_LIBRARY[TRACKS[trackIndex].soundId];
+            return sound && sound.pitched ? PITCHED_MODES : DRUM_MODES;
+        }
+
+        // Built-in Genre Presets (10 tracks x 16 steps + custom sound kits)
+        const PRESETS = {
+            hiphop: {
+                bpm: 92,
+                swing: 24,
+                sounds: ['kickDry', 'snareCrisp', 'hatClosed', 'hatOpen', 'rimshot', 'shaker', 'vinylHit', 'bassSub', 'synthChord', 'synthBell'],
+                pattern: [
+                    [1,0,0,0, 0,0,0,1, 0,0,1,0, 0,0,0,0], // 1: Acoustic Kick
+                    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,2], // 2: Snare Crisp
+                    [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,1], // 3: Closed Hat
+                    [0,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0], // 4: Open Hat
+                    [0,0,0,1, 0,0,0,0, 0,1,0,0, 0,0,2,0], // 5: Rimshot
+                    [0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1], // 6: Shaker
+                    [1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // 7: Vinyl Hit
+                    [1,0,0,1, 0,0,0,3, 0,0,5,0, 0,4,0,0], // 8: Sub Bass
+                    [1,0,0,0, 0,0,3,0, 0,5,0,0, 0,0,7,0], // 9: Warm Chord
+                    [0,0,0,0, 5,0,0,0, 0,0,0,3, 0,0,8,0]  // 0: FM Bell
+                ]
+            },
+            trap: {
+                bpm: 140,
+                swing: 0,
+                sounds: ['kick808', 'snare808', 'hatClosed', 'hatOpen', 'clapStudio', 'tomHi', 'cowbell', 'bassSub', 'synthBell', 'laserZap'],
+                pattern: [
+                    [1,0,0,0, 0,0,0,0, 0,0,1,0, 0,0,0,1], // 1: Kick 808
+                    [0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0], // 2: Snare 808
+                    [1,1,1,2, 1,0,1,1, 1,0,3,3, 1,1,2,1], // 3: Trap Hat Rolls
+                    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0], // 4: Open Hat
+                    [0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,2], // 5: Clap
+                    [0,0,0,2, 0,0,1,0, 0,0,0,0, 0,3,0,0], // 6: Hi Tom
+                    [1,0,0,1, 0,0,1,0, 0,1,0,0, 1,0,3,0], // 7: 808 Cowbell (Phonk)
+                    [1,0,0,0, 0,0,0,0, 1,0,1,0, 0,0,6,0], // 8: Sub Bass
+                    [1,0,0,3, 0,0,5,0, 1,0,0,3, 0,0,6,0], // 9: Dark Bell
+                    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1]  // 0: Laser Zap
+                ]
+            },
+            house: {
+                bpm: 124,
+                swing: 14,
+                sounds: ['kick909', 'snareCrisp', 'hatClosed', 'hatOpen', 'clapFat', 'tomLow', 'shaker', 'bassSlap', 'synthChord', 'synthPluck'],
+                pattern: [
+                    [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0], // 1: 4x4 909 Kick
+                    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0], // 2: Snare
+                    [1,0,0,1, 1,0,0,1, 1,0,0,1, 1,0,1,0], // 3: Closed Hat
+                    [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0], // 4: Offbeat Open Hat
+                    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0], // 5: Fat Clap
+                    [0,0,0,1, 0,0,2,0, 0,1,0,0, 0,0,3,0], // 6: Low Tom
+                    [0,1,1,0, 0,1,1,0, 0,1,1,0, 0,1,1,0], // 7: Shaker
+                    [0,0,1,0, 0,3,1,0, 0,0,5,0, 0,4,7,0], // 8: FM Funk Bass
+                    [0,0,1,0, 0,0,0,3, 0,0,5,0, 0,7,0,0], // 9: Warm Chord Stab
+                    [1,0,0,0, 0,0,5,0, 0,3,0,0, 0,0,8,0]  // 0: Synth Pluck
+                ]
+            },
+            lofi: {
+                bpm: 82,
+                swing: 36,
+                sounds: ['kickDry', 'rimshot', 'hatClosed', 'shaker', 'clave', 'vinylHit', 'tomLow', 'bassSub', 'synthChord', 'synthBell'],
+                pattern: [
+                    [1,0,0,0, 0,0,0,2, 0,0,1,0, 0,0,0,0], // 1: Kick Dry
+                    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0], // 2: Rimshot
+                    [1,0,2,0, 1,0,2,0, 1,0,2,0, 1,0,2,2], // 3: Hat
+                    [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0], // 4: Shaker
+                    [0,0,0,1, 0,0,0,0, 0,0,1,0, 0,0,0,0], // 5: Clave
+                    [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0], // 6: Vinyl Dust
+                    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,1,2,0], // 7: Tom
+                    [1,0,0,0, 0,0,4,0, 5,0,0,0, 0,0,3,0], // 8: Sub Bass
+                    [1,0,0,3, 0,5,0,0, 4,0,0,7, 0,3,0,0], // 9: Lush Chord
+                    [0,0,8,0, 0,0,5,0, 0,3,0,0, 0,0,7,0]  // 0: Kalimba Bell
+                ]
+            },
+            acid: {
+                bpm: 132,
+                swing: 8,
+                sounds: ['kickHard', 'snare909', 'hatClosed', 'hatOpen', 'clapStudio', 'rideCym', 'cowbell', 'bassAcid', 'synthArp', 'laserZap'],
+                pattern: [
+                    [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,1,0], // 1: Hard Kick
+                    [0,0,0,0, 1,0,0,1, 0,0,0,0, 1,0,0,2], // 2: Snare
+                    [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1], // 3: Closed Hat
+                    [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0], // 4: Open Hat
+                    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0], // 5: Clap
+                    [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0], // 6: Ride
+                    [0,0,0,1, 0,0,0,0, 0,0,0,1, 0,0,0,0], // 7: Cowbell
+                    [1,3,8,1, 0,4,7,1, 3,5,8,1, 6,4,3,8], // 8: 303 Acid Line!
+                    [1,0,5,0, 8,0,5,0, 4,0,7,0, 8,0,5,0], // 9: Chiptune Arp
+                    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,1,0]  // 0: Laser
+                ]
+            },
+            synthwave: {
+                bpm: 110,
+                swing: 0,
+                sounds: ['kick909', 'clapFat', 'hatClosed', 'crashCym', 'tomHi', 'tomLow', 'bassReese', 'bassAcid', 'synthLead', 'synthArp'],
+                pattern: [
+                    [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,1,0], // 1: Kick 909
+                    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0], // 2: Fat Arena Clap
+                    [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1], // 3: 16th Hats
+                    [1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // 4: Crash on step 1
+                    [0,0,0,0, 0,0,0,0, 0,0,0,0, 1,1,0,0], // 5: Hi Tom fill
+                    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,1,2], // 6: Low Tom fill
+                    [1,0,0,0, 0,0,0,0, 4,0,0,0, 5,0,0,0], // 7: Reese Bass Drone
+                    [1,1,1,1, 4,4,4,4, 5,5,5,5, 7,7,3,3], // 8: Driving 16th Bass
+                    [1,0,5,0, 8,0,5,0, 4,0,5,0, 7,0,3,0], // 9: Retro Saw Lead
+                    [8,5,3,1, 8,5,3,1, 7,5,4,1, 8,7,5,3]  // 0: 8-bit Arp
+                ]
+            }
+        };
+
+        /**************************************************************
+         * 2. SEQUENCER STATE & AUDIO CONTEXT VARIABLES
+         **************************************************************/
+        const NUM_STEPS = 16;
+        let gridState = TRACKS.map(() => new Array(NUM_STEPS).fill(0));
+
+        let isPlaying = false;
+        let currentStep = 0;
+        let bpm = 120;
+        let swingPercent = 0;
+        let masterVolume = 0.85;
+
+        // Global Sound Shaper Parameters
+        let masterFilterFreq = 20000;
+        let globalDecayMult = 1.0;
+        let globalDriveAmount = 0.15;
+        let globalPitchShift = 0; // semitones
+
+        // Web Audio Nodes
+        let audioCtx = null;
+        let masterGainNode = null;
+        let masterFilterNode = null;
+        let compressorNode = null;
+        let analyserNode = null;
+        let noiseBuffer = null;
+
+        // Lookahead Scheduler Variables
+        let nextNoteTime = 0.0;
+        let timerID = null;
+        const scheduleAheadTime = 0.1; // seconds
+        const lookaheadMs = 25.0; // milliseconds
+        let visualQueue = [];
+        let lastDrawnStep = -1;
+        let vizMode = 'BARS'; // 'BARS' or 'WAVE'
+
+        /**************************************************************
+         * 3. WEB AUDIO API SYNTHESIS ENGINE
+         **************************************************************/
+        function initAudioEngine() {
+            if (audioCtx) {
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                return;
+            }
+
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContextClass();
+
+            // Master Filter -> Dynamics Compressor -> Master Gain -> Analyser -> Destination
+            masterFilterNode = audioCtx.createBiquadFilter();
+            masterFilterNode.type = 'lowpass';
+            masterFilterNode.frequency.setValueAtTime(masterFilterFreq, audioCtx.currentTime);
+            masterFilterNode.Q.setValueAtTime(1.2, audioCtx.currentTime);
+
+            compressorNode = audioCtx.createDynamicsCompressor();
+            compressorNode.threshold.setValueAtTime(-14, audioCtx.currentTime);
+            compressorNode.knee.setValueAtTime(20, audioCtx.currentTime);
+            compressorNode.ratio.setValueAtTime(6, audioCtx.currentTime);
+            compressorNode.attack.setValueAtTime(0.003, audioCtx.currentTime);
+            compressorNode.release.setValueAtTime(0.18, audioCtx.currentTime);
+
+            masterGainNode = audioCtx.createGain();
+            masterGainNode.gain.setValueAtTime(masterVolume, audioCtx.currentTime);
+
+            analyserNode = audioCtx.createAnalyser();
+            analyserNode.fftSize = 128;
+            analyserNode.smoothingTimeConstant = 0.78;
+
+            masterFilterNode.connect(compressorNode);
+            compressorNode.connect(masterGainNode);
+            masterGainNode.connect(analyserNode);
+            analyserNode.connect(audioCtx.destination);
+
+            // Pre-generate 2 seconds of white noise buffer for Percussion
+            const bufferSize = audioCtx.sampleRate * 2;
+            noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const output = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                output[i] = Math.random() * 2 - 1;
+            }
+        }
+
+        function semitoneMultiplier(semitones) {
+            return Math.pow(2, semitones / 12);
+        }
+
+        // Check if track should play based on Mute / Solo state
+        function isTrackAudible(trackIndex) {
+            const anySolo = TRACKS.some(t => t.solo);
+            const track = TRACKS[trackIndex];
+            if (anySolo) {
+                return track.solo;
+            }
+            return !track.muted;
+        }
+
+        // Trigger Instrument Sound at Exact Web Audio Timestamp
+        function triggerInstrument(trackIndex, modeValue = 1, time = null) {
+            initAudioEngine();
+            const now = time !== null ? time : audioCtx.currentTime;
+
+            if (!isTrackAudible(trackIndex)) return;
+
+            const track = TRACKS[trackIndex];
+            const soundId = track.soundId;
+            const vol = track.volume * (1 + globalDriveAmount * 0.35);
+
+            // Calculate pitch multiplier from global shift + per-track tune + step variation
+            let stepSemitoneOffset = 0;
+            const soundMeta = SOUND_LIBRARY[soundId];
+            if (!soundMeta.pitched) {
+                if (modeValue === 3) stepSemitoneOffset = 4;  // HI
+                if (modeValue === 4) stepSemitoneOffset = -4; // LOW
+            }
+
+            const pitchMult = semitoneMultiplier(globalPitchShift + (track.tune || 0) + stepSemitoneOffset);
+            const decayMult = globalDecayMult;
+
+            switch (soundId) {
+                // Kicks
+                case 'kick808':   playKick(now, vol, modeValue, pitchMult, decayMult, '808'); break;
+                case 'kick909':   playKick(now, vol, modeValue, pitchMult, decayMult, '909'); break;
+                case 'kickDry':   playKick(now, vol, modeValue, pitchMult, decayMult, 'dry'); break;
+                case 'kickHard':  playKick(now, vol, modeValue, pitchMult, decayMult, 'hard'); break;
+
+                // Snares & Claps
+                case 'snareCrisp':
+                case 'snare909':  playSnare(now, vol, modeValue, pitchMult, decayMult, 'crisp'); break;
+                case 'snare808':  playSnare(now, vol, modeValue, pitchMult, decayMult, '808'); break;
+                case 'rimshot':   playSnare(now, vol, modeValue, pitchMult, decayMult, 'rim'); break;
+                case 'clapStudio':playClap(now, vol, modeValue, pitchMult, decayMult, false); break;
+                case 'clapFat':   playClap(now, vol, modeValue, pitchMult, decayMult, true); break;
+
+                // Hats & Cymbals
+                case 'hatClosed': playHiHat(now, vol, false, modeValue, pitchMult, decayMult); break;
+                case 'hatOpen':   playHiHat(now, vol, true, modeValue, pitchMult, decayMult); break;
+                case 'shaker':    playShaker(now, vol, modeValue, pitchMult, decayMult); break;
+                case 'rideCym':   playCymbal(now, vol, modeValue, pitchMult, decayMult, false); break;
+                case 'crashCym':  playCymbal(now, vol, modeValue, pitchMult, decayMult, true); break;
+
+                // Percussion & FX
+                case 'tomLow':    playTom(now, vol, modeValue, pitchMult * 0.85, decayMult); break;
+                case 'tomHi':     playTom(now, vol, modeValue, pitchMult * 1.45, decayMult); break;
+                case 'cowbell':   playCowbell(now, vol, modeValue, pitchMult, decayMult); break;
+                case 'clave':     playClave(now, vol, modeValue, pitchMult, decayMult); break;
+                case 'laserZap':  playLaser(now, vol, modeValue, pitchMult, decayMult); break;
+                case 'vinylHit':  playVinyl(now, vol, modeValue, pitchMult, decayMult); break;
+
+                // Basses (Pitched)
+                case 'bassSub':   playSubBass(now, vol, modeValue, pitchMult, decayMult, 'sub'); break;
+                case 'bassAcid':  playSubBass(now, vol, modeValue, pitchMult, decayMult, 'acid'); break;
+                case 'bassReese': playSubBass(now, vol, modeValue, pitchMult, decayMult, 'reese'); break;
+                case 'bassSlap':  playSubBass(now, vol, modeValue, pitchMult, decayMult, 'slap'); break;
+
+                // Melodic Synths (Pitched)
+                case 'synthPluck':playSynth(now, vol, modeValue, pitchMult, decayMult, 'pluck'); break;
+                case 'synthChord':playSynth(now, vol, modeValue, pitchMult, decayMult, 'chord'); break;
+                case 'synthLead': playSynth(now, vol, modeValue, pitchMult, decayMult, 'lead'); break;
+                case 'synthBell': playSynth(now, vol, modeValue, pitchMult, decayMult, 'bell'); break;
+                case 'synthArp':  playSynth(now, vol, modeValue, pitchMult, decayMult, 'arp'); break;
+
+                default:          playKick(now, vol, modeValue, pitchMult, decayMult, '808');
+            }
+        }
+
+        // 1. MULTI-MODEL KICK SYNTHESIZER (808, 909, Dry, Hard Distorted)
+        function playKick(time, volume, mode, pitchMult, decayMult, style = '808') {
+            const osc = audioCtx.createOscillator();
+            const clickOsc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            const clickGain = audioCtx.createGain();
+
+            const isAccent = mode === 2;
+            let dur = 0.42 * decayMult;
+            let startFreq = 150 * pitchMult;
+            let endFreq = 42 * pitchMult;
+
+            if (style === '909') {
+                dur = 0.32 * decayMult;
+                startFreq = 195 * pitchMult;
+                endFreq = 48 * pitchMult;
+            } else if (style === 'dry') {
+                dur = 0.20 * decayMult;
+                startFreq = 130 * pitchMult;
+                endFreq = 52 * pitchMult;
+            } else if (style === 'hard') {
+                dur = 0.36 * decayMult;
+                startFreq = 220 * pitchMult;
+                endFreq = 45 * pitchMult;
+            }
+
+            const level = volume * (isAccent ? 1.2 : 1.0);
+            osc.type = style === 'hard' ? 'sawtooth' : 'sine';
+
+            osc.frequency.setValueAtTime(startFreq, time);
+            osc.frequency.exponentialRampToValueAtTime(65 * pitchMult, time + 0.04);
+            osc.frequency.exponentialRampToValueAtTime(endFreq, time + dur);
+
+            gain.gain.setValueAtTime(0.001, time);
+            gain.gain.linearRampToValueAtTime(level, time + 0.003);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+
+            clickOsc.type = 'triangle';
+            clickOsc.frequency.setValueAtTime(360 * pitchMult, time);
+            clickOsc.frequency.exponentialRampToValueAtTime(45, time + 0.025);
+
+            clickGain.gain.setValueAtTime(level * (style === '909' ? 0.65 : 0.4), time);
+            clickGain.gain.exponentialRampToValueAtTime(0.001, time + 0.025);
+
+            if (style === 'hard') {
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(420, time);
+                osc.connect(filter);
+                filter.connect(gain);
+            } else {
+                osc.connect(gain);
+            }
+
+            clickOsc.connect(clickGain);
+            gain.connect(masterFilterNode);
+            clickGain.connect(masterFilterNode);
+
+            osc.start(time);
+            osc.stop(time + dur + 0.02);
+            clickOsc.start(time);
+            clickOsc.stop(time + 0.03);
+        }
+
+        // 2. SNARE & RIMSHOT SYNTHESIZER
+        function playSnare(time, volume, mode, pitchMult, decayMult, style = 'crisp') {
+            const isRim = style === 'rim' || mode === 3;
+            const level = volume * (mode === 2 ? 1.18 : 0.95);
+
+            const osc = audioCtx.createOscillator();
+            const oscGain = audioCtx.createGain();
+            osc.type = 'triangle';
+            const bodyFreq = isRim ? 420 : (style === '808' ? 185 : 220);
+            osc.frequency.setValueAtTime(bodyFreq * pitchMult, time);
+            osc.frequency.exponentialRampToValueAtTime((isRim ? 290 : 110) * pitchMult, time + 0.09);
+
+            oscGain.gain.setValueAtTime(level * 0.75, time);
+            oscGain.gain.exponentialRampToValueAtTime(0.001, time + (isRim ? 0.055 : 0.13));
+
+            osc.connect(oscGain);
+            oscGain.connect(masterFilterNode);
+            osc.start(time);
+            osc.stop(time + 0.14);
+
+            if (isRim) return;
+
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = noiseBuffer;
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'highpass';
+            filter.frequency.setValueAtTime(style === '808' ? 1500 : 1000, time);
+
+            const noiseGain = audioCtx.createGain();
+            const noiseDur = (style === '808' ? 0.16 : 0.24) * decayMult;
+            noiseGain.gain.setValueAtTime(level * 0.85, time);
+            noiseGain.gain.exponentialRampToValueAtTime(0.001, time + noiseDur);
+
+            noise.connect(filter);
+            filter.connect(noiseGain);
+            noiseGain.connect(masterFilterNode);
+
+            noise.start(time);
+            noise.stop(time + noiseDur + 0.02);
+        }
+
+        // 3 & 4. HI-HAT SYNTHESIZER
+        function playHiHat(time, volume, isOpen, mode, pitchMult, decayMult) {
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = noiseBuffer;
+
+            const bandpass = audioCtx.createBiquadFilter();
+            bandpass.type = 'bandpass';
+            bandpass.frequency.setValueAtTime(9200 * pitchMult, time);
+            bandpass.Q.setValueAtTime(1.4, time);
+
+            const highpass = audioCtx.createBiquadFilter();
+            highpass.type = 'highpass';
+            highpass.frequency.setValueAtTime(6800, time);
+
+            const gain = audioCtx.createGain();
+            let dur = isOpen ? 0.36 : 0.055;
+            dur *= decayMult;
+            const level = volume * (mode === 2 ? 1.15 : 0.85);
+
+            gain.gain.setValueAtTime(0.001, time);
+            gain.gain.linearRampToValueAtTime(level, time + 0.003);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+
+            noise.connect(bandpass);
+            bandpass.connect(highpass);
+            highpass.connect(gain);
+            gain.connect(masterFilterNode);
+
+            noise.start(time);
+            noise.stop(time + dur + 0.02);
+        }
+
+        // 5. HAND CLAP SYNTHESIZER
+        function playClap(time, volume, mode, pitchMult, decayMult, isFat = false) {
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = noiseBuffer;
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.setValueAtTime((isFat ? 1150 : 1400) * pitchMult, time);
+            filter.Q.setValueAtTime(isFat ? 1.2 : 1.8, time);
+
+            const gain = audioCtx.createGain();
+            const tailDur = (isFat ? 0.36 : 0.21) * decayMult;
+            const level = volume * (mode === 2 ? 1.15 : 0.9);
+
+            gain.gain.setValueAtTime(0.001, time);
+            gain.gain.linearRampToValueAtTime(level, time + 0.002);
+            gain.gain.exponentialRampToValueAtTime(0.12, time + 0.010);
+
+            gain.gain.setValueAtTime(level, time + 0.011);
+            gain.gain.exponentialRampToValueAtTime(0.12, time + 0.020);
+
+            gain.gain.setValueAtTime(level, time + 0.021);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + tailDur);
+
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(masterFilterNode);
+
+            noise.start(time);
+            noise.stop(time + tailDur + 0.02);
+        }
+
+        // 6. SHAKER & CYMBALS (RIDE / CRASH)
+        function playShaker(time, volume, mode, pitchMult, decayMult) {
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = noiseBuffer;
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.setValueAtTime(7500 * pitchMult, time);
+            filter.Q.setValueAtTime(2.5, time);
+
+            const gain = audioCtx.createGain();
+            const dur = 0.08 * decayMult;
+            gain.gain.setValueAtTime(0.001, time);
+            gain.gain.linearRampToValueAtTime(volume * 0.75, time + 0.022);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(masterFilterNode);
+            noise.start(time);
+            noise.stop(time + dur + 0.02);
+        }
+
+        function playCymbal(time, volume, mode, pitchMult, decayMult, isCrash = false) {
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = noiseBuffer;
+            const hp = audioCtx.createBiquadFilter();
+            hp.type = 'highpass';
+            hp.frequency.setValueAtTime((isCrash ? 3800 : 5800) * pitchMult, time);
+
+            const gain = audioCtx.createGain();
+            const dur = (isCrash ? 0.95 : 0.48) * decayMult;
+            gain.gain.setValueAtTime(volume * 0.65, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+
+            // Metallic bell overtone for Ride
+            if (!isCrash) {
+                const bellOsc = audioCtx.createOscillator();
+                const bellGain = audioCtx.createGain();
+                bellOsc.type = 'square';
+                bellOsc.frequency.setValueAtTime(980 * pitchMult, time);
+                bellGain.gain.setValueAtTime(volume * 0.15, time);
+                bellGain.gain.exponentialRampToValueAtTime(0.001, time + 0.18);
+                bellOsc.connect(bellGain);
+                bellGain.connect(masterFilterNode);
+                bellOsc.start(time);
+                bellOsc.stop(time + 0.2);
+            }
+
+            noise.connect(hp);
+            hp.connect(gain);
+            gain.connect(masterFilterNode);
+            noise.start(time);
+            noise.stop(time + dur + 0.03);
+        }
+
+        // 7. PERCUSSION: TOM, 808 COWBELL, CLAVE, LASER, VINYL
+        function playTom(time, volume, mode, pitchMult, decayMult) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            const baseFreq = 130 * pitchMult;
+            const dur = 0.24 * decayMult;
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(baseFreq * 1.6, time);
+            osc.frequency.exponentialRampToValueAtTime(baseFreq, time + dur);
+
+            gain.gain.setValueAtTime(volume * 0.95, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+
+            osc.connect(gain);
+            gain.connect(masterFilterNode);
+            osc.start(time);
+            osc.stop(time + dur + 0.02);
+        }
+
+        function playCowbell(time, volume, mode, pitchMult, decayMult) {
+            // Classic 808 Cowbell: 540Hz + 800Hz square oscillators through bandpass
+            const osc1 = audioCtx.createOscillator();
+            const osc2 = audioCtx.createOscillator();
+            const filter = audioCtx.createBiquadFilter();
+            const gain = audioCtx.createGain();
+
+            osc1.type = 'square';
+            osc2.type = 'square';
+            osc1.frequency.setValueAtTime(540 * pitchMult, time);
+            osc2.frequency.setValueAtTime(800 * pitchMult, time);
+
+            filter.type = 'bandpass';
+            filter.frequency.setValueAtTime(700 * pitchMult, time);
+            filter.Q.setValueAtTime(2.6, time);
+
+            const dur = 0.22 * decayMult;
+            gain.gain.setValueAtTime(volume * 0.65, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+
+            osc1.connect(filter);
+            osc2.connect(filter);
+            filter.connect(gain);
+            gain.connect(masterFilterNode);
+
+            osc1.start(time);
+            osc2.start(time);
+            osc1.stop(time + dur + 0.02);
+            osc2.stop(time + dur + 0.02);
+        }
+
+        function playClave(time, volume, mode, pitchMult, decayMult) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(2150 * pitchMult, time);
+            const dur = 0.045 * decayMult;
+            gain.gain.setValueAtTime(volume * 0.85, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+            osc.connect(gain);
+            gain.connect(masterFilterNode);
+            osc.start(time);
+            osc.stop(time + dur + 0.01);
+        }
+
+        function playLaser(time, volume, mode, pitchMult, decayMult) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            const dur = 0.22 * decayMult;
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(1600 * pitchMult, time);
+            osc.frequency.exponentialRampToValueAtTime(75 * pitchMult, time + dur);
+
+            gain.gain.setValueAtTime(volume * 0.55, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+            osc.connect(gain);
+            gain.connect(masterFilterNode);
+            osc.start(time);
+            osc.stop(time + dur + 0.02);
+        }
+
+        function playVinyl(time, volume, mode, pitchMult, decayMult) {
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = noiseBuffer;
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.setValueAtTime(2200 * pitchMult, time);
+            filter.Q.setValueAtTime(0.9, time);
+
+            const gain = audioCtx.createGain();
+            const dur = 0.35 * decayMult;
+            gain.gain.setValueAtTime(volume * 0.35, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(masterFilterNode);
+            noise.start(time);
+            noise.stop(time + dur + 0.02);
+        }
+
+        // 8. BASS SYNTHESIZERS (Sub, Acid 303, Reese, FM Slap)
+        function playSubBass(time, volume, mode, pitchMult, decayMult, style = 'sub') {
+            const freqIndex = Math.min(Math.max(mode, 1), BASS_FREQS.length - 1);
+            const freq = BASS_FREQS[freqIndex] * pitchMult;
+            const dur = (style === 'reese' ? 0.38 : 0.26) * decayMult;
+
+            const osc = audioCtx.createOscillator();
+            const subOsc = audioCtx.createOscillator();
+            const filter = audioCtx.createBiquadFilter();
+            const gain = audioCtx.createGain();
+
+            osc.type = style === 'slap' ? 'square' : 'sawtooth';
+            osc.frequency.setValueAtTime(freq, time);
+
+            subOsc.type = style === 'reese' ? 'sawtooth' : 'sine';
+            subOsc.frequency.setValueAtTime(style === 'reese' ? freq * 1.008 : freq, time);
+
+            filter.type = 'lowpass';
+            if (style === 'acid') {
+                filter.frequency.setValueAtTime(freq * 11, time);
+                filter.frequency.exponentialRampToValueAtTime(freq * 1.4, time + dur * 0.75);
+                filter.Q.setValueAtTime(10.5, time); // Classic 303 resonance
+            } else if (style === 'slap') {
+                filter.frequency.setValueAtTime(freq * 9, time);
+                filter.frequency.exponentialRampToValueAtTime(freq * 2, time + 0.09);
+                filter.Q.setValueAtTime(4.5, time);
+            } else {
+                filter.frequency.setValueAtTime(freq * 5.5, time);
+                filter.frequency.exponentialRampToValueAtTime(freq * 1.5, time + dur * 0.85);
+                filter.Q.setValueAtTime(2.8, time);
+            }
+
+            gain.gain.setValueAtTime(0.001, time);
+            gain.gain.linearRampToValueAtTime(volume * 0.75, time + 0.006);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+
+            osc.connect(filter);
+            subOsc.connect(filter);
+            filter.connect(gain);
+            gain.connect(masterFilterNode);
+
+            osc.start(time);
+            subOsc.start(time);
+            osc.stop(time + dur + 0.02);
+            subOsc.stop(time + dur + 0.02);
+        }
+
+        // 9. MELODIC SYNTHS (Pluck, Warm Chord, Retro Lead, FM Bell, Chiptune Arp)
+        function playSynth(time, volume, mode, pitchMult, decayMult, style = 'pluck') {
+            const freqIndex = Math.min(Math.max(mode, 1), SYNTH_FREQS.length - 1);
+            const rootFreq = SYNTH_FREQS[freqIndex] * pitchMult;
+            const dur = (style === 'chord' ? 0.42 : (style === 'arp' ? 0.16 : 0.30)) * decayMult;
+
+            const filter = audioCtx.createBiquadFilter();
+            const gain = audioCtx.createGain();
+
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(style === 'bell' ? 5200 : 3800, time);
+            filter.frequency.exponentialRampToValueAtTime(style === 'lead' ? 1400 : 520, time + dur);
+            filter.Q.setValueAtTime(style === 'lead' ? 3.5 : 1.8, time);
+
+            let intervals = [1, 1.006, 1.498]; // Pluck fifth
+            if (style === 'chord') intervals = [1, 1.189, 1.498, 1.782]; // Minor 7th chord
+            if (style === 'lead')  intervals = [1, 1.008, 0.5]; // Sub + Detuned Saw
+            if (style === 'bell')  intervals = [1, 2.0, 3.01];  // Chime harmonics
+            if (style === 'arp')   intervals = [1];             // Pure 8-bit square
+
+            gain.gain.setValueAtTime(0.001, time);
+            gain.gain.linearRampToValueAtTime(volume * (style === 'arp' ? 0.55 : 0.36), time + 0.005);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+
+            intervals.forEach((ratio, idx) => {
+                const osc = audioCtx.createOscillator();
+                if (style === 'arp') osc.type = 'square';
+                else if (style === 'bell') osc.type = 'sine';
+                else osc.type = idx % 2 === 0 ? 'sawtooth' : 'triangle';
+
+                osc.frequency.setValueAtTime(rootFreq * ratio, time);
+                osc.connect(filter);
+                osc.start(time);
+                osc.stop(time + dur + 0.02);
+            });
+
+            filter.connect(gain);
+            gain.connect(masterFilterNode);
+        }
+
+        /**************************************************************
+         * 4. PRECISION LOOKAHEAD SCHEDULER
+         **************************************************************/
+        function nextStep() {
+            const secondsPerBeat = 60.0 / bpm;
+            const sixteenthTime = 0.25 * secondsPerBeat;
+
+            // Apply groove swing to odd-numbered 16th steps
+            const swingOffset = (swingPercent / 100) * (sixteenthTime * 0.66);
+            if (currentStep % 2 === 0) {
+                nextNoteTime += sixteenthTime + swingOffset;
+            } else {
+                nextNoteTime += sixteenthTime - swingOffset;
+            }
+
+            currentStep = (currentStep + 1) % NUM_STEPS;
+        }
+
+        function scheduleStep(stepNumber, time) {
+            visualQueue.push({ step: stepNumber, time: time });
+
+            for (let t = 0; t < TRACKS.length; t++) {
+                const stepVal = gridState[t][stepNumber];
+                if (stepVal > 0) {
+                    triggerInstrument(t, stepVal, time);
+                }
+            }
+        }
+
+        function scheduler() {
+            while (nextNoteTime < audioCtx.currentTime + scheduleAheadTime) {
+                scheduleStep(currentStep, nextNoteTime);
+                nextStep();
+            }
+            timerID = setTimeout(scheduler, lookaheadMs);
+        }
+
+        function togglePlay() {
+            initAudioEngine();
+            isPlaying = !isPlaying;
+
+            const playBtn = document.getElementById('playBtn');
+            const playText = document.getElementById('playText');
+            const playIcon = document.getElementById('playIcon');
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+
+            if (isPlaying) {
+                currentStep = 0;
+                nextNoteTime = audioCtx.currentTime + 0.04;
+                scheduler();
+
+                playBtn.classList.remove('bg-emerald-500', 'hover:bg-emerald-400', 'shadow-emerald-500/20');
+                playBtn.classList.add('bg-rose-500', 'hover:bg-rose-400', 'text-white', 'shadow-rose-500/30');
+                playText.textContent = 'STOP';
+                playIcon.innerHTML = '<rect x="6" y="6" width="12" height="12" rx="1"/>';
+
+                statusDot.className = 'w-2 h-2 rounded-full bg-emerald-400 recording-dot';
+                statusText.textContent = 'PLAYING';
+                statusText.className = 'text-[10px] mono uppercase tracking-wider text-emerald-400';
+            } else {
+                clearTimeout(timerID);
+                visualQueue = [];
+                clearPlayheadUI();
+
+                playBtn.classList.remove('bg-rose-500', 'hover:bg-rose-400', 'text-white', 'shadow-rose-500/30');
+                playBtn.classList.add('bg-emerald-500', 'hover:bg-emerald-400', 'shadow-emerald-500/20');
+                playText.textContent = 'PLAY';
+                playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+
+                statusDot.className = 'w-2 h-2 rounded-full bg-slate-600';
+                statusText.textContent = 'STANDBY';
+                statusText.className = 'text-[10px] mono uppercase tracking-wider text-slate-400';
+            }
+        }
+
+        /**************************************************************
+         * 5. UI CONSTRUCTION & INTERACTIVE GRID
+         **************************************************************/
+        function buildSoundOptionsHTML(selectedSoundId) {
+            const groups = {};
+            Object.values(SOUND_LIBRARY).forEach(s => {
+                if (!groups[s.category]) groups[s.category] = [];
+                groups[s.category].push(s);
+            });
+
+            let html = '';
+            for (const [cat, items] of Object.entries(groups)) {
+                html += `<optgroup label="${cat}">`;
+                items.forEach(s => {
+                    const sel = s.id === selectedSoundId ? 'selected' : '';
+                    html += `<option value="${s.id}" ${sel}>${s.name}</option>`;
+                });
+                html += `</optgroup>`;
+            }
+            return html;
+        }
+
+        function changeTrackSound(tIdx, newSoundId, playPreview = true) {
+            if (!SOUND_LIBRARY[newSoundId]) return;
+            TRACKS[tIdx].soundId = newSoundId;
+
+            const soundMeta = SOUND_LIBRARY[newSoundId];
+            // Sync dropdowns in both Track Row and Live Pad
+            const rowSelect = document.getElementById(`sound-select-${tIdx}`);
+            const padSelect = document.getElementById(`pad-sound-select-${tIdx}`);
+            const subLabel = document.getElementById(`track-sub-${tIdx}`);
+
+            if (rowSelect && rowSelect.value !== newSoundId) rowSelect.value = newSoundId;
+            if (padSelect && padSelect.value !== newSoundId) padSelect.value = newSoundId;
+            if (subLabel) subLabel.textContent = soundMeta.sub;
+
+            // Clamp step modes if switching from 8-note pitched to 4-mode drum
+            const maxModes = getTrackModes(tIdx).length - 1;
+            for (let s = 0; s < NUM_STEPS; s++) {
+                if (gridState[tIdx][s] > maxModes) {
+                    gridState[tIdx][s] = 1;
+                }
+                renderStepCell(tIdx, s);
+            }
+
+            if (playPreview) {
+                triggerInstrument(tIdx, 1);
+                flashLivePad(tIdx);
+                showToast(`🎹 Phím [${TRACKS[tIdx].key}] ➔ ${soundMeta.name}`);
+            }
+        }
+
+        function buildSequencerUI() {
+            // 1. Build 16-Step Header Numbers
+            const headerRow = document.getElementById('stepHeaderRow');
+            headerRow.innerHTML = '';
+            for (let s = 0; s < NUM_STEPS; s++) {
+                const isBeatStart = s % 4 === 0;
+                const badge = document.createElement('div');
+                badge.id = `header-step-${s}`;
+                badge.className = `text-center mono text-[11px] py-1 rounded transition-colors ${
+                    isBeatStart
+                        ? 'bg-slate-800 text-cyan-300 font-bold border border-slate-700'
+                        : 'text-slate-500 font-medium'
+                }`;
+                badge.textContent = String(s + 1).padStart(2, '0');
+                headerRow.appendChild(badge);
+            }
+
+            // 2. Build 10 Track Rows
+            const tracksContainer = document.getElementById('tracksContainer');
+            tracksContainer.innerHTML = '';
+
+            TRACKS.forEach((track, tIdx) => {
+                const soundMeta = SOUND_LIBRARY[track.soundId];
+                const row = document.createElement('div');
+                row.className = 'grid grid-cols-[310px_1fr] gap-3 items-center bg-[#161b28]/70 hover:bg-[#192030] p-2 rounded-xl border border-slate-800/70 transition';
+
+                // Left Track Control Panel with Sound Selector & Tune
+                const leftCtrl = document.createElement('div');
+                leftCtrl.className = 'flex items-center justify-between gap-2 pr-1';
+
+                leftCtrl.innerHTML = `
+                    <div class="flex items-center gap-2 min-w-0 flex-1">
+                        <button id="track-pad-${tIdx}" title="Nghe thử phím ${track.key}"
+                            style="background-color: ${track.color}22; border-color: ${track.color}88; color: ${track.color}"
+                            class="w-8 h-8 rounded-lg border flex items-center justify-center font-extrabold mono text-xs shrink-0 hover:scale-105 active:scale-95 transition shadow-sm">
+                            ${track.key}
+                        </button>
+                        <div class="min-w-0 flex-1">
+                            <select id="sound-select-${tIdx}" title="Đổi âm thanh cho Phím ${track.key}"
+                                class="w-full bg-[#10141f] hover:bg-[#1a2234] text-slate-100 text-xs font-bold px-2 py-1 rounded-md border border-slate-700/80 focus:outline-none focus:border-cyan-400 cursor-pointer truncate">
+                                ${buildSoundOptionsHTML(track.soundId)}
+                            </select>
+                            <div id="track-sub-${tIdx}" class="text-[10px] text-slate-400 truncate pl-1 mt-0.5">${soundMeta.sub}</div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        <div class="flex flex-col items-center" title="Chỉnh cao độ (Tune) riêng cho Phím ${track.key}">
+                            <span id="tune-label-${tIdx}" class="text-[9px] mono text-slate-400 leading-none mb-0.5">0st</span>
+                            <input id="tune-slider-${tIdx}" type="range" min="-12" max="12" value="${track.tune}" class="w-10">
+                        </div>
+                        <button id="mute-btn-${tIdx}" title="Mute Track"
+                            class="w-6 h-6 rounded text-[10px] font-bold mono border border-slate-700 bg-slate-800/90 text-slate-400 hover:text-white transition">
+                            M
+                        </button>
+                        <button id="solo-btn-${tIdx}" title="Solo Track"
+                            class="w-6 h-6 rounded text-[10px] font-bold mono border border-slate-700 bg-slate-800/90 text-slate-400 hover:text-white transition">
+                            S
+                        </button>
+                        <input id="vol-slider-${tIdx}" type="range" min="0" max="100" value="${Math.round(track.volume * 100)}"
+                            title="Âm lượng Phím ${track.key}" class="w-12">
+                    </div>
+                `;
+
+                // Right 16-Step Buttons Grid
+                const stepsGrid = document.createElement('div');
+                stepsGrid.className = 'grid grid-cols-16 gap-1.5';
+
+                for (let s = 0; s < NUM_STEPS; s++) {
+                    const stepBtn = document.createElement('button');
+                    stepBtn.id = `step-${tIdx}-${s}`;
+                    const isQuarterGroup = Math.floor(s / 4) % 2 === 0;
+                    const isDownbeat = s % 4 === 0;
+
+                    stepBtn.className = `step-btn h-10 rounded-lg border flex flex-col items-center justify-center select-none ${
+                        isQuarterGroup ? 'bg-[#1c2232]' : 'bg-[#151a26]'
+                    } ${isDownbeat ? 'border-slate-700/90' : 'border-slate-800/80'}`;
+
+                    stepBtn.innerHTML = `
+                        <span id="step-dot-${tIdx}-${s}" class="w-1.5 h-1.5 rounded-full bg-slate-600/50 mb-0.5"></span>
+                        <span id="step-label-${tIdx}-${s}" class="text-[9px] mono font-bold leading-none opacity-85"></span>
+                    `;
+
+                    stepBtn.addEventListener('click', (e) => {
+                        if (e.shiftKey) {
+                            cycleStepVariation(tIdx, s);
+                        } else {
+                            toggleStep(tIdx, s);
+                        }
+                    });
+
+                    stepBtn.addEventListener('contextmenu', (e) => {
+                        e.preventDefault();
+                        cycleStepVariation(tIdx, s);
+                    });
+
+                    stepsGrid.appendChild(stepBtn);
+                }
+
+                row.appendChild(leftCtrl);
+                row.appendChild(stepsGrid);
+                tracksContainer.appendChild(row);
+
+                // Attach Track Control Listeners
+                document.getElementById(`track-pad-${tIdx}`).addEventListener('click', () => {
+                    triggerInstrument(tIdx, 1);
+                    flashLivePad(tIdx);
+                });
+
+                document.getElementById(`sound-select-${tIdx}`).addEventListener('change', (e) => {
+                    changeTrackSound(tIdx, e.target.value, true);
+                });
+
+                document.getElementById(`tune-slider-${tIdx}`).addEventListener('input', (e) => {
+                    const val = parseInt(e.target.value, 10);
+                    TRACKS[tIdx].tune = val;
+                    document.getElementById(`tune-label-${tIdx}`).textContent = `${val > 0 ? '+' : ''}${val}st`;
+                });
+
+                document.getElementById(`mute-btn-${tIdx}`).addEventListener('click', () => {
+                    TRACKS[tIdx].muted = !TRACKS[tIdx].muted;
+                    updateTrackControlButtons();
+                });
+
+                document.getElementById(`solo-btn-${tIdx}`).addEventListener('click', () => {
+                    TRACKS[tIdx].solo = !TRACKS[tIdx].solo;
+                    updateTrackControlButtons();
+                });
+
+                document.getElementById(`vol-slider-${tIdx}`).addEventListener('input', (e) => {
+                    TRACKS[tIdx].volume = parseInt(e.target.value, 10) / 100;
+                });
+            });
+
+            // 3. Build Bottom 10 Live Performance Pads (Keys 1-9, 0)
+            const livePadsContainer = document.getElementById('livePadsContainer');
+            livePadsContainer.innerHTML = '';
+
+            TRACKS.forEach((track, tIdx) => {
+                const pad = document.createElement('div');
+                pad.id = `live-pad-${tIdx}`;
+                pad.style.borderColor = `${track.color}55`;
+                pad.className = 'bg-[#161c2b] hover:bg-[#1e263a] transition-all p-2 rounded-xl border flex flex-col justify-between h-20 relative overflow-hidden cursor-pointer select-none';
+
+                pad.innerHTML = `
+                    <div class="w-full flex items-center justify-between pointer-events-none">
+                        <span class="text-[10px] mono font-extrabold px-1.5 py-0.5 rounded bg-slate-900/90 text-white border border-slate-700">KEY ${track.key}</span>
+                        <span class="w-2.5 h-2.5 rounded-full" style="background-color: ${track.color}; box-shadow: 0 0 8px ${track.color}"></span>
+                    </div>
+                    <select id="pad-sound-select-${tIdx}" title="Đổi nhanh âm thanh cho Phím ${track.key}"
+                        class="w-full bg-[#0d111a]/90 hover:bg-slate-900 text-slate-200 text-[10px] font-semibold px-1 py-1 rounded border border-slate-700/80 focus:outline-none focus:border-cyan-400 cursor-pointer mt-1">
+                        ${buildSoundOptionsHTML(track.soundId)}
+                    </select>
+                `;
+
+                pad.addEventListener('mousedown', (e) => {
+                    if (e.target.tagName === 'SELECT') return;
+                    triggerInstrument(tIdx, 1);
+                    flashLivePad(tIdx);
+                });
+
+                livePadsContainer.appendChild(pad);
+
+                document.getElementById(`pad-sound-select-${tIdx}`).addEventListener('change', (e) => {
+                    changeTrackSound(tIdx, e.target.value, true);
+                });
+            });
+        }
+
+        function toggleStep(tIdx, sIdx) {
+            initAudioEngine();
+            if (gridState[tIdx][sIdx] === 0) {
+                gridState[tIdx][sIdx] = 1;
+                if (!isPlaying) {
+                    triggerInstrument(tIdx, 1);
+                }
+            } else {
+                gridState[tIdx][sIdx] = 0;
+            }
+            renderStepCell(tIdx, sIdx);
+        }
+
+        function cycleStepVariation(tIdx, sIdx) {
+            initAudioEngine();
+            const modes = getTrackModes(tIdx);
+            const maxModes = modes.length - 1;
+            let nextVal = gridState[tIdx][sIdx] + 1;
+            if (nextVal > maxModes) {
+                nextVal = 1;
+            }
+            gridState[tIdx][sIdx] = nextVal;
+            triggerInstrument(tIdx, nextVal);
+            renderStepCell(tIdx, sIdx);
+        }
+
+        function renderStepCell(tIdx, sIdx) {
+            const val = gridState[tIdx][sIdx];
+            const track = TRACKS[tIdx];
+            const modes = getTrackModes(tIdx);
+            const btn = document.getElementById(`step-${tIdx}-${sIdx}`);
+            const dot = document.getElementById(`step-dot-${tIdx}-${sIdx}`);
+            const label = document.getElementById(`step-label-${tIdx}-${sIdx}`);
+
+            if (!btn) return;
+
+            if (val > 0) {
+                btn.style.backgroundColor = track.color;
+                btn.style.borderColor = '#ffffff99';
+                btn.style.boxShadow = `0 0 14px ${track.glow}`;
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-slate-950 mb-0.5';
+                label.textContent = modes[val] || '';
+                label.className = 'text-[9px] mono font-extrabold text-slate-950 leading-none';
+            } else {
+                btn.style.backgroundColor = '';
+                btn.style.borderColor = '';
+                btn.style.boxShadow = 'none';
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-slate-600/50 mb-0.5';
+                label.textContent = '';
+            }
+        }
+
+        function renderFullGrid() {
+            for (let t = 0; t < TRACKS.length; t++) {
+                for (let s = 0; s < NUM_STEPS; s++) {
+                    renderStepCell(t, s);
+                }
+            }
+        }
+
+        function updateTrackControlButtons() {
+            TRACKS.forEach((track, tIdx) => {
+                const muteBtn = document.getElementById(`mute-btn-${tIdx}`);
+                const soloBtn = document.getElementById(`solo-btn-${tIdx}`);
+
+                if (track.muted) {
+                    muteBtn.className = 'w-6 h-6 rounded text-[10px] font-bold mono border border-rose-400 bg-rose-500 text-slate-950 shadow-sm shadow-rose-500/40';
+                } else {
+                    muteBtn.className = 'w-6 h-6 rounded text-[10px] font-bold mono border border-slate-700 bg-slate-800/90 text-slate-400 hover:text-white transition';
+                }
+
+                if (track.solo) {
+                    soloBtn.className = 'w-6 h-6 rounded text-[10px] font-bold mono border border-amber-300 bg-amber-400 text-slate-950 shadow-sm shadow-amber-400/40';
+                } else {
+                    soloBtn.className = 'w-6 h-6 rounded text-[10px] font-bold mono border border-slate-700 bg-slate-800/90 text-slate-400 hover:text-white transition';
+                }
+            });
+        }
+
+        function flashLivePad(tIdx) {
+            const pad = document.getElementById(`live-pad-${tIdx}`);
+            const trackPad = document.getElementById(`track-pad-${tIdx}`);
+            const color = TRACKS[tIdx].color;
+
+            if (pad) {
+                pad.style.backgroundColor = `${color}44`;
+                pad.style.boxShadow = `0 0 18px ${TRACKS[tIdx].glow}`;
+                setTimeout(() => {
+                    pad.style.backgroundColor = '';
+                    pad.style.boxShadow = '';
+                }, 130);
+            }
+            if (trackPad) {
+                trackPad.style.transform = 'scale(1.12)';
+                setTimeout(() => {
+                    trackPad.style.transform = '';
+                }, 120);
+            }
+        }
+
+        function clearPlayheadUI() {
+            for (let s = 0; s < NUM_STEPS; s++) {
+                const header = document.getElementById(`header-step-${s}`);
+                if (header) {
+                    header.classList.remove('bg-amber-400', 'text-slate-950', 'scale-105');
+                }
+                for (let t = 0; t < TRACKS.length; t++) {
+                    const cell = document.getElementById(`step-${t}-${s}`);
+                    if (cell) cell.classList.remove('step-playing');
+                }
+            }
+            lastDrawnStep = -1;
+            document.getElementById('stepDisplay').textContent = '01 / 16';
+        }
+
+        /**************************************************************
+         * 6. REAL-TIME VISUALIZER & PLAYHEAD ANIMATION LOOP
+         **************************************************************/
+        function startVisualLoop() {
+            const canvas = document.getElementById('visualizer');
+            const ctx = canvas.getContext('2d');
+
+            function resizeCanvas() {
+                canvas.width = canvas.clientWidth * window.devicePixelRatio;
+                canvas.height = canvas.clientHeight * window.devicePixelRatio;
+            }
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            function drawFrame() {
+                requestAnimationFrame(drawFrame);
+
+                // 1. Update Playhead Position synced with AudioContext
+                if (isPlaying && audioCtx) {
+                    const currentTime = audioCtx.currentTime;
+                    while (visualQueue.length && visualQueue[0].time <= currentTime) {
+                        const activeStep = visualQueue[0].step;
+                        visualQueue.shift();
+
+                        if (activeStep !== lastDrawnStep) {
+                            // Remove previous highlight
+                            if (lastDrawnStep >= 0) {
+                                const oldHeader = document.getElementById(`header-step-${lastDrawnStep}`);
+                                if (oldHeader) oldHeader.classList.remove('bg-amber-400', 'text-slate-950', 'scale-105');
+                                for (let t = 0; t < TRACKS.length; t++) {
+                                    const oldCell = document.getElementById(`step-${t}-${lastDrawnStep}`);
+                                    if (oldCell) oldCell.classList.remove('step-playing');
+                                }
+                            }
+
+                            // Add current highlight
+                            const newHeader = document.getElementById(`header-step-${activeStep}`);
+                            if (newHeader) newHeader.classList.add('bg-amber-400', 'text-slate-950', 'scale-105');
+
+                            for (let t = 0; t < TRACKS.length; t++) {
+                                const newCell = document.getElementById(`step-${t}-${activeStep}`);
+                                if (newCell) newCell.classList.add('step-playing');
+                                if (gridState[t][activeStep] > 0 && isTrackAudible(t)) {
+                                    flashLivePad(t);
+                                }
+                            }
+
+                            document.getElementById('stepDisplay').textContent =
+                                `${String(activeStep + 1).padStart(2, '0')} / 16`;
+                            lastDrawnStep = activeStep;
+                        }
+                    }
+                }
+
+                // 2. Render Frequency / Waveform Spectrum
+                const w = canvas.width;
+                const h = canvas.height;
+                ctx.clearRect(0, 0, w, h);
+
+                if (!analyserNode) {
+                    // Idle flat line
+                    ctx.strokeStyle = '#1e293b';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(0, h / 2);
+                    ctx.lineTo(w, h / 2);
+                    ctx.stroke();
+                    return;
+                }
+
+                const bufferLength = analyserNode.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+
+                if (vizMode === 'BARS') {
+                    analyserNode.getByteFrequencyData(dataArray);
+                    const barCount = 28;
+                    const barWidth = (w / barCount) * 0.72;
+                    const gap = (w / barCount) * 0.28;
+
+                    for (let i = 0; i < barCount; i++) {
+                        const val = dataArray[i];
+                        const percent = val / 255;
+                        const barHeight = Math.max(3, percent * (h - 6));
+                        const x = i * (barWidth + gap);
+                        const y = h - barHeight;
+
+                        const grad = ctx.createLinearGradient(0, h, 0, 0);
+                        grad.addColorStop(0, '#06b6d4');
+                        grad.addColorStop(0.6, '#a855f7');
+                        grad.addColorStop(1, '#f43f5e');
+
+                        ctx.fillStyle = grad;
+                        ctx.beginPath();
+                        ctx.roundRect(x, y, barWidth, barHeight, 2);
+                        ctx.fill();
+                    }
+                } else {
+                    analyserNode.getByteTimeDomainData(dataArray);
+                    ctx.lineWidth = 2.2 * window.devicePixelRatio;
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.beginPath();
+
+                    const sliceWidth = w / bufferLength;
+                    let x = 0;
+                    for (let i = 0; i < bufferLength; i++) {
+                        const v = dataArray[i] / 128.0;
+                        const y = (v * h) / 2;
+                        if (i === 0) ctx.moveTo(x, y);
+                        else ctx.lineTo(x, y);
+                        x += sliceWidth;
+                    }
+                    ctx.lineTo(w, h / 2);
+                    ctx.stroke();
+                }
+            }
+
+            requestAnimationFrame(drawFrame);
+        }
+
+        /**************************************************************
+         * 7. PRESETS, RANDOMIZER, & STORAGE HELPERS
+         **************************************************************/
+        function loadPreset(presetKey) {
+            const preset = PRESETS[presetKey];
+            if (!preset) return;
+
+            bpm = preset.bpm;
+            swingPercent = preset.swing;
+
+            document.getElementById('bpmSlider').value = bpm;
+            document.getElementById('bpmValue').textContent = `${bpm} BPM`;
+
+            document.getElementById('swingSlider').value = swingPercent;
+            document.getElementById('swingValue').textContent = `${swingPercent}%`;
+
+            if (preset.sounds) {
+                preset.sounds.forEach((sId, idx) => {
+                    if (TRACKS[idx] && SOUND_LIBRARY[sId]) {
+                        changeTrackSound(idx, sId, false);
+                    }
+                });
+            }
+
+            gridState = preset.pattern.map(row => [...row]);
+            renderFullGrid();
+            showToast(`Đã tải preset: ${presetKey.toUpperCase()} (${bpm} BPM)`);
+        }
+
+        function randomizeKit() {
+            initAudioEngine();
+            const pools = [
+                ['kick808', 'kick909', 'kickDry', 'kickHard'],
+                ['snareCrisp', 'snare808', 'rimshot'],
+                ['hatClosed', 'shaker'],
+                ['hatOpen', 'rideCym', 'crashCym'],
+                ['clapStudio', 'clapFat', 'rimshot'],
+                ['tomLow', 'tomHi', 'clave'],
+                ['cowbell', 'clave', 'vinylHit', 'laserZap'],
+                ['bassSub', 'bassAcid', 'bassReese', 'bassSlap'],
+                ['synthPluck', 'synthChord', 'synthBell'],
+                ['synthLead', 'synthArp', 'synthBell', 'laserZap']
+            ];
+
+            pools.forEach((pool, idx) => {
+                const pick = pool[Math.floor(Math.random() * pool.length)];
+                changeTrackSound(idx, pick, false);
+            });
+            showToast('🎛️ Đã đổi ngẫu nhiên bộ Sound Kit cho 10 phím (1-9, 0)!');
+        }
+
+        function randomizeBeat() {
+            initAudioEngine();
+            for (let s = 0; s < NUM_STEPS; s++) {
+                gridState[0][s] = (s === 0 || s === 8) ? 1 : (Math.random() < 0.20 ? 1 : 0); // 1: Kick
+                gridState[1][s] = (s === 4 || s === 12) ? 1 : (Math.random() < 0.10 ? 2 : 0); // 2: Snare
+                gridState[2][s] = (s % 2 === 0) ? 1 : (Math.random() < 0.35 ? 2 : 0); // 3: Closed Hat
+                gridState[3][s] = (s % 4 === 2 && Math.random() < 0.45) ? 1 : 0; // 4: Open Hat
+                gridState[4][s] = (s === 12 && Math.random() < 0.7) ? 1 : (Math.random() < 0.08 ? 1 : 0); // 5: Clap
+                gridState[5][s] = Math.random() < 0.15 ? (Math.floor(Math.random() * 3) + 1) : 0; // 6: Tom
+                gridState[6][s] = Math.random() < 0.14 ? (Math.floor(Math.random() * 2) + 1) : 0; // 7: Perc/Cowbell
+                gridState[7][s] = (s === 0) ? 1 : (Math.random() < 0.28 ? (Math.floor(Math.random() * 7) + 1) : 0); // 8: Bass
+                gridState[8][s] = Math.random() < 0.22 ? (Math.floor(Math.random() * 7) + 1) : 0; // 9: Synth 1
+                gridState[9][s] = Math.random() < 0.18 ? (Math.floor(Math.random() * 8) + 1) : 0; // 0: Synth 2
+            }
+            renderFullGrid();
+            showToast('🎲 Đã phối ngẫu nhiên nhịp Beat cho 10 rãnh!');
+        }
+
+        function clearGrid() {
+            gridState = TRACKS.map(() => new Array(NUM_STEPS).fill(0));
+            renderFullGrid();
+            showToast('🗑️ Đã xóa trắng bảng Sequencer.');
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            toastMsg.textContent = message;
+            toast.classList.remove('hidden');
+            clearTimeout(toast.hideTimer);
+            toast.hideTimer = setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 2400);
+        }
+
+        /**************************************************************
+         * 8. EVENT LISTENERS & KEYBOARD SHORTCUTS
+         **************************************************************/
+        window.onload = function () {
+            buildSequencerUI();
+            loadPreset('hiphop');
+            startVisualLoop();
+
+            // Play / Stop Button
+            document.getElementById('playBtn').addEventListener('click', togglePlay);
+
+            // Visualizer Mode Switch
+            document.getElementById('vizModeBtn').addEventListener('click', (e) => {
+                vizMode = vizMode === 'BARS' ? 'WAVE' : 'BARS';
+                e.target.textContent = vizMode;
+            });
+
+            // Tempo Slider
+            document.getElementById('bpmSlider').addEventListener('input', (e) => {
+                bpm = parseInt(e.target.value, 10);
+                document.getElementById('bpmValue').textContent = `${bpm} BPM`;
+            });
+
+            // Swing Slider
+            document.getElementById('swingSlider').addEventListener('input', (e) => {
+                swingPercent = parseInt(e.target.value, 10);
+                document.getElementById('swingValue').textContent = `${swingPercent}%`;
+            });
+
+            // Master Volume Slider
+            document.getElementById('masterVolSlider').addEventListener('input', (e) => {
+                masterVolume = parseInt(e.target.value, 10) / 100;
+                document.getElementById('masterVolValue').textContent = `${e.target.value}%`;
+                if (masterGainNode && audioCtx) {
+                    masterGainNode.gain.setValueAtTime(masterVolume, audioCtx.currentTime);
+                }
+            });
+
+            // Genre Preset Selector
+            document.getElementById('presetSelect').addEventListener('change', (e) => {
+                loadPreset(e.target.value);
+            });
+
+            // Randomize Kit, Randomize Beat & Clear Buttons
+            document.getElementById('randomKitBtn').addEventListener('click', randomizeKit);
+            document.getElementById('randomBtn').addEventListener('click', randomizeBeat);
+            document.getElementById('clearBtn').addEventListener('click', clearGrid);
+
+            // Sound Shaper FX Sliders
+            document.getElementById('cutoffSlider').addEventListener('input', (e) => {
+                masterFilterFreq = parseFloat(e.target.value);
+                const khz = (masterFilterFreq / 1000).toFixed(1);
+                document.getElementById('cutoffVal').textContent = `${khz} kHz`;
+                if (masterFilterNode && audioCtx) {
+                    masterFilterNode.frequency.setTargetAtTime(masterFilterFreq, audioCtx.currentTime, 0.015);
+                }
+            });
+
+            document.getElementById('decaySlider').addEventListener('input', (e) => {
+                globalDecayMult = parseInt(e.target.value, 10) / 100;
+                document.getElementById('decayVal').textContent = `${e.target.value}%`;
+            });
+
+            document.getElementById('driveSlider').addEventListener('input', (e) => {
+                globalDriveAmount = parseInt(e.target.value, 10) / 100;
+                document.getElementById('driveVal').textContent = `${e.target.value}%`;
+            });
+
+            document.getElementById('pitchSlider').addEventListener('input', (e) => {
+                globalPitchShift = parseInt(e.target.value, 10);
+                const prefix = globalPitchShift > 0 ? '+' : '';
+                document.getElementById('pitchVal').textContent = `${prefix}${globalPitchShift} ST`;
+            });
+
+            document.getElementById('resetFxBtn').addEventListener('click', () => {
+                masterFilterFreq = 20000;
+                globalDecayMult = 1.0;
+                globalDriveAmount = 0.15;
+                globalPitchShift = 0;
+
+                document.getElementById('cutoffSlider').value = 20000;
+                document.getElementById('cutoffVal').textContent = '20.0 kHz';
+                document.getElementById('decaySlider').value = 100;
+                document.getElementById('decayVal').textContent = '100%';
+                document.getElementById('driveSlider').value = 15;
+                document.getElementById('driveVal').textContent = '15%';
+                document.getElementById('pitchSlider').value = 0;
+                document.getElementById('pitchVal').textContent = '0 ST';
+
+                if (masterFilterNode && audioCtx) {
+                    masterFilterNode.frequency.setTargetAtTime(20000, audioCtx.currentTime, 0.02);
+                }
+                showToast('🎛️ Đã đặt lại bộ lọc & hiệu ứng âm thanh!');
+            });
+
+            // Save / Load LocalStorage & Copy JSON
+            document.getElementById('saveLocalBtn').addEventListener('click', () => {
+                const sounds = TRACKS.map(t => t.soundId);
+                const tunes = TRACKS.map(t => t.tune);
+                const payload = { bpm, swingPercent, sounds, tunes, gridState };
+                localStorage.setItem('vibebeat_saved_pattern', JSON.stringify(payload));
+                showToast('💾 Đã lưu Beat & Cấu hình 10 phím vào trình duyệt!');
+            });
+
+            document.getElementById('loadLocalBtn').addEventListener('click', () => {
+                const raw = localStorage.getItem('vibebeat_saved_pattern');
+                if (!raw) {
+                    showToast('⚠️ Chưa có Beat nào được lưu trước đó.');
+                    return;
+                }
+                try {
+                    const data = JSON.parse(raw);
+                    bpm = data.bpm || 120;
+                    swingPercent = data.swingPercent || 0;
+                    if (Array.isArray(data.sounds)) {
+                        data.sounds.forEach((sId, idx) => {
+                            if (TRACKS[idx] && SOUND_LIBRARY[sId]) changeTrackSound(idx, sId, false);
+                        });
+                    }
+                    if (Array.isArray(data.tunes)) {
+                        data.tunes.forEach((tVal, idx) => {
+                            if (TRACKS[idx]) {
+                                TRACKS[idx].tune = tVal;
+                                const slider = document.getElementById(`tune-slider-${idx}`);
+                                const label = document.getElementById(`tune-label-${idx}`);
+                                if (slider) slider.value = tVal;
+                                if (label) label.textContent = `${tVal > 0 ? '+' : ''}${tVal}st`;
+                            }
+                        });
+                    }
+                    if (Array.isArray(data.gridState) && data.gridState.length === TRACKS.length) {
+                        gridState = data.gridState;
+                    }
+                    document.getElementById('bpmSlider').value = bpm;
+                    document.getElementById('bpmValue').textContent = `${bpm} BPM`;
+                    document.getElementById('swingSlider').value = swingPercent;
+                    document.getElementById('swingValue').textContent = `${swingPercent}%`;
+                    renderFullGrid();
+                    showToast('📂 Đã khôi phục Beat & Sound Kit đã lưu!');
+                } catch (err) {
+                    showToast('⚠️ Dữ liệu Beat không hợp lệ.');
+                }
+            });
+
+            document.getElementById('exportJsonBtn').addEventListener('click', () => {
+                const sounds = TRACKS.map(t => t.soundId);
+                const jsonStr = JSON.stringify({ bpm, swing: swingPercent, sounds, pattern: gridState });
+                const tempInput = document.createElement('textarea');
+                tempInput.value = jsonStr;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                document.execCommand('copy');
+                document.body.removeChild(tempInput);
+                showToast('📋 Đã sao chép mã JSON của Beat vào Clipboard!');
+            });
+
+            // Keyboard Shortcuts (Spacebar for Play/Stop, 1-9 and 0 for 10 Live Drum Pads)
+            window.addEventListener('keydown', (e) => {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    togglePlay();
+                } else if (e.key >= '1' && e.key <= '9') {
+                    const idx = parseInt(e.key, 10) - 1;
+                    if (TRACKS[idx]) {
+                        triggerInstrument(idx, 1);
+                        flashLivePad(idx);
+                    }
+                } else if (e.key === '0') {
+                    const idx = 9; // Key 0 maps to 10th track
+                    if (TRACKS[idx]) {
+                        triggerInstrument(idx, 1);
+                        flashLivePad(idx);
+                    }
+                }
+            });
+        };
+    </script>
+</body>
+</html>
