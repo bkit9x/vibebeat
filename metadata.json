@@ -1,0 +1,8 @@
+{
+  "name": "VibeBeat Studio — 16-Step Web Audio Groovebox",
+  "description": "Pure Web Audio Synthesizer & 16-Step Sequencer featuring 26 procedural sounds, 10-track drum & synth sequencing, swing, master filter & FX shaper, live pads, and instant preset patterns.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
