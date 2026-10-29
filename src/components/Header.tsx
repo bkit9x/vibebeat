@@ -148,7 +148,7 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* BPM Control (10 to 200 BPM) */}
+          {/* BPM Control (50 to 200 BPM) */}
           <div className="flex flex-col gap-1 px-2">
             <div className="flex justify-between items-center text-xs">
               <span className="text-slate-400 font-medium">TEMPO</span>
@@ -157,12 +157,12 @@ export const Header: React.FC<HeaderProps> = ({
             <input
               id="bpmSlider"
               type="range"
-              min="10"
+              min="50"
               max="200"
               value={bpm}
               onChange={(e) => onBpmChange(parseInt(e.target.value, 10))}
               className="w-24 sm:w-28 cursor-pointer"
-              title="Chỉnh tốc độ (10 - 200 BPM)"
+              title="Chỉnh tốc độ (50 - 200 BPM)"
             />
           </div>
 

@@ -387,9 +387,16 @@ export const App: React.FC = () => {
   }, [showToast, stepCount]);
 
   const handleClear = useCallback(() => {
+    if (isPlaying) {
+      audioEngine.togglePlay();
+      setIsPlaying(false);
+      setCurrentStep(-1);
+    } else {
+      audioEngine.stopAllSounds();
+    }
     setGrid(INITIAL_TRACKS.map(() => new Array(32).fill(0)));
     showToast('🗑️ Đã xóa trắng bảng Sequencer.', '🗑️');
-  }, [showToast]);
+  }, [isPlaying, showToast]);
 
   const handleResetFx = useCallback(() => {
     setFx({
@@ -421,7 +428,7 @@ export const App: React.FC = () => {
     }
     try {
       const data = JSON.parse(raw);
-      if (data.bpm) setBpm(data.bpm);
+      if (data.bpm) setBpm(Math.max(50, Math.min(200, data.bpm)));
       if (data.swingPercent !== undefined) setSwing(data.swingPercent);
       if (data.stepCount) {
         setStepCount(Math.max(16, Math.min(32, data.stepCount)));

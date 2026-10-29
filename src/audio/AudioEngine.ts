@@ -34,6 +34,7 @@ export class AudioEngine {
   private visualQueue: Array<{ step: number; time: number }> = [];
 
   private customBuffers: Map<string, AudioBuffer> = new Map();
+  private activeSources: Set<AudioScheduledSourceNode> = new Set();
 
   // Callbacks
   private onStepChange?: (step: number) => void;
@@ -155,6 +156,69 @@ export class AudioEngine {
     return this.visualQueue.shift();
   }
 
+  private createOscillator(): OscillatorNode {
+    const osc = this.audioCtx!.createOscillator();
+    this.activeSources.add(osc);
+    osc.onended = () => {
+      this.activeSources.delete(osc);
+    };
+    return osc;
+  }
+
+  private createBufferSource(): AudioBufferSourceNode {
+    const src = this.audioCtx!.createBufferSource();
+    this.activeSources.add(src);
+    src.onended = () => {
+      this.activeSources.delete(src);
+    };
+    return src;
+  }
+
+  public stopAllSounds() {
+    if (!this.audioCtx) return;
+    const now = this.audioCtx.currentTime;
+
+    // Immediately stop and disconnect all active source nodes (voices)
+    this.activeSources.forEach((node) => {
+      try {
+        node.stop(now);
+      } catch {
+        // Ignored
+      }
+      try {
+        node.disconnect();
+      } catch {
+        // Ignored
+      }
+    });
+    this.activeSources.clear();
+
+    // Clear any future scheduled visual playhead items
+    this.visualQueue = [];
+
+    // Cancel filter automation and restore base cutoff
+    if (this.masterFilterNode) {
+      try {
+        this.masterFilterNode.frequency.cancelScheduledValues(now);
+        this.masterFilterNode.frequency.setValueAtTime(this.fxSettings.cutoff, now);
+      } catch {
+        // Ignored
+      }
+    }
+
+    // Cancel all scheduled gain automations and apply instantaneous silence
+    if (this.masterGainNode) {
+      try {
+        this.masterGainNode.gain.cancelScheduledValues(now);
+        this.masterGainNode.gain.setValueAtTime(this.masterGainNode.gain.value, now);
+        this.masterGainNode.gain.linearRampToValueAtTime(0, now + 0.003);
+        this.masterGainNode.gain.setValueAtTime(this.masterVolume, now + 0.025);
+      } catch {
+        // Ignored
+      }
+    }
+  }
+
   private semitoneMultiplier(semitones: number): number {
     return Math.pow(2, semitones / 12);
   }
@@ -195,7 +259,7 @@ export class AudioEngine {
     // Check if soundId is a custom uploaded sample
     if (this.customBuffers.has(soundId)) {
       const buf = this.customBuffers.get(soundId)!;
-      const src = this.audioCtx.createBufferSource();
+      const src = this.createBufferSource();
       src.buffer = buf;
 
       let samplePitchSemitones = this.fxSettings.pitch + (track.tune || 0);
@@ -276,8 +340,8 @@ export class AudioEngine {
   // --- 1. Multi-model Kick ---
   private playKick(time: number, volume: number, mode: number, pitchMult: number, decayMult: number, style: '808' | '909' | 'dry' | 'hard') {
     if (!this.audioCtx || !this.masterFilterNode) return;
-    const osc = this.audioCtx.createOscillator();
-    const clickOsc = this.audioCtx.createOscillator();
+    const osc = this.createOscillator();
+    const clickOsc = this.createOscillator();
     const gain = this.audioCtx.createGain();
     const clickGain = this.audioCtx.createGain();
 
@@ -344,7 +408,7 @@ export class AudioEngine {
     const isRim = style === 'rim' || mode === 3;
     const level = volume * (mode === 2 ? 1.18 : 0.95);
 
-    const osc = this.audioCtx.createOscillator();
+    const osc = this.createOscillator();
     const oscGain = this.audioCtx.createGain();
     osc.type = 'triangle';
     const bodyFreq = isRim ? 420 : (style === '808' ? 185 : 220);
@@ -361,7 +425,7 @@ export class AudioEngine {
 
     if (isRim) return;
 
-    const noise = this.audioCtx.createBufferSource();
+    const noise = this.createBufferSource();
     noise.buffer = this.noiseBuffer;
 
     const filter = this.audioCtx.createBiquadFilter();
@@ -384,7 +448,7 @@ export class AudioEngine {
   // --- 3 & 4. Hi-Hat ---
   private playHiHat(time: number, volume: number, isOpen: boolean, mode: number, pitchMult: number, decayMult: number) {
     if (!this.audioCtx || !this.masterFilterNode || !this.noiseBuffer) return;
-    const noise = this.audioCtx.createBufferSource();
+    const noise = this.createBufferSource();
     noise.buffer = this.noiseBuffer;
 
     const bandpass = this.audioCtx.createBiquadFilter();
@@ -417,7 +481,7 @@ export class AudioEngine {
   // --- 5. Hand Clap ---
   private playClap(time: number, volume: number, mode: number, pitchMult: number, decayMult: number, isFat = false) {
     if (!this.audioCtx || !this.masterFilterNode || !this.noiseBuffer) return;
-    const noise = this.audioCtx.createBufferSource();
+    const noise = this.createBufferSource();
     noise.buffer = this.noiseBuffer;
 
     const filter = this.audioCtx.createBiquadFilter();
@@ -450,7 +514,7 @@ export class AudioEngine {
   // --- 6. Shaker & Cymbals ---
   private playShaker(time: number, volume: number, _mode: number, pitchMult: number, decayMult: number) {
     if (!this.audioCtx || !this.masterFilterNode || !this.noiseBuffer) return;
-    const noise = this.audioCtx.createBufferSource();
+    const noise = this.createBufferSource();
     noise.buffer = this.noiseBuffer;
     const filter = this.audioCtx.createBiquadFilter();
     filter.type = 'bandpass';
@@ -472,7 +536,7 @@ export class AudioEngine {
 
   private playCymbal(time: number, volume: number, _mode: number, pitchMult: number, decayMult: number, isCrash = false) {
     if (!this.audioCtx || !this.masterFilterNode || !this.noiseBuffer) return;
-    const noise = this.audioCtx.createBufferSource();
+    const noise = this.createBufferSource();
     noise.buffer = this.noiseBuffer;
     const hp = this.audioCtx.createBiquadFilter();
     hp.type = 'highpass';
@@ -484,7 +548,7 @@ export class AudioEngine {
     gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
 
     if (!isCrash) {
-      const bellOsc = this.audioCtx.createOscillator();
+      const bellOsc = this.createOscillator();
       const bellGain = this.audioCtx.createGain();
       bellOsc.type = 'square';
       bellOsc.frequency.setValueAtTime(980 * pitchMult, time);
@@ -506,7 +570,7 @@ export class AudioEngine {
   // --- 7. Percussion: Tom, Cowbell, Clave, Laser, Vinyl ---
   private playTom(time: number, volume: number, _mode: number, pitchMult: number, decayMult: number) {
     if (!this.audioCtx || !this.masterFilterNode) return;
-    const osc = this.audioCtx.createOscillator();
+    const osc = this.createOscillator();
     const gain = this.audioCtx.createGain();
     const baseFreq = 130 * pitchMult;
     const dur = 0.24 * decayMult;
@@ -526,8 +590,8 @@ export class AudioEngine {
 
   private playCowbell(time: number, volume: number, _mode: number, pitchMult: number, decayMult: number) {
     if (!this.audioCtx || !this.masterFilterNode) return;
-    const osc1 = this.audioCtx.createOscillator();
-    const osc2 = this.audioCtx.createOscillator();
+    const osc1 = this.createOscillator();
+    const osc2 = this.createOscillator();
     const filter = this.audioCtx.createBiquadFilter();
     const gain = this.audioCtx.createGain();
 
@@ -557,7 +621,7 @@ export class AudioEngine {
 
   private playClave(time: number, volume: number, _mode: number, pitchMult: number, decayMult: number) {
     if (!this.audioCtx || !this.masterFilterNode) return;
-    const osc = this.audioCtx.createOscillator();
+    const osc = this.createOscillator();
     const gain = this.audioCtx.createGain();
     osc.type = 'sine';
     osc.frequency.setValueAtTime(2150 * pitchMult, time);
@@ -572,7 +636,7 @@ export class AudioEngine {
 
   private playLaser(time: number, volume: number, _mode: number, pitchMult: number, decayMult: number) {
     if (!this.audioCtx || !this.masterFilterNode) return;
-    const osc = this.audioCtx.createOscillator();
+    const osc = this.createOscillator();
     const gain = this.audioCtx.createGain();
     const dur = 0.22 * decayMult;
     osc.type = 'sawtooth';
@@ -589,7 +653,7 @@ export class AudioEngine {
 
   private playVinyl(time: number, volume: number, _mode: number, pitchMult: number, decayMult: number) {
     if (!this.audioCtx || !this.masterFilterNode || !this.noiseBuffer) return;
-    const noise = this.audioCtx.createBufferSource();
+    const noise = this.createBufferSource();
     noise.buffer = this.noiseBuffer;
     const filter = this.audioCtx.createBiquadFilter();
     filter.type = 'bandpass';
@@ -614,8 +678,8 @@ export class AudioEngine {
     const freq = BASS_FREQS[freqIndex] * pitchMult;
     const dur = (style === 'reese' ? 0.38 : 0.26) * decayMult;
 
-    const osc = this.audioCtx.createOscillator();
-    const subOsc = this.audioCtx.createOscillator();
+    const osc = this.createOscillator();
+    const subOsc = this.createOscillator();
     const filter = this.audioCtx.createBiquadFilter();
     const gain = this.audioCtx.createGain();
 
@@ -682,7 +746,7 @@ export class AudioEngine {
 
     intervals.forEach((ratio, idx) => {
       if (!this.audioCtx) return;
-      const osc = this.audioCtx.createOscillator();
+      const osc = this.createOscillator();
       if (style === 'arp') osc.type = 'square';
       else if (style === 'bell') osc.type = 'sine';
       else osc.type = idx % 2 === 0 ? 'sawtooth' : 'triangle';
@@ -747,13 +811,22 @@ export class AudioEngine {
         clearTimeout(this.timerID);
         this.timerID = null;
       }
-      this.visualQueue = [];
+      this.stopAllSounds();
+      this.currentStep = 0;
       if (this.onStepChange) {
         this.onStepChange(-1);
       }
     }
 
     return this.isPlaying;
+  }
+
+  public stop() {
+    if (this.isPlaying) {
+      this.togglePlay();
+    } else {
+      this.stopAllSounds();
+    }
   }
 
   public getIsPlaying(): boolean {
