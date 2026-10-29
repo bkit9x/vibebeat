@@ -12,6 +12,7 @@ export class AudioEngine {
   // Scheduler state
   private isPlaying = false;
   private currentStep = 0;
+  private stepCount = 16;
   private bpm = 120;
   private swingPercent = 0;
   private masterVolume = 0.85;
@@ -119,7 +120,8 @@ export class AudioEngine {
     bpm: number,
     swing: number,
     masterVolume: number,
-    fx: FxSettings
+    fx: FxSettings,
+    stepCount = 16
   ) {
     this.tracks = tracks;
     this.grid = grid;
@@ -127,6 +129,7 @@ export class AudioEngine {
     this.swingPercent = swing;
     this.masterVolume = masterVolume;
     this.fxSettings = fx;
+    this.stepCount = stepCount;
 
     if (this.masterGainNode && this.audioCtx) {
       this.masterGainNode.gain.setValueAtTime(this.masterVolume, this.audioCtx.currentTime);
@@ -706,7 +709,7 @@ export class AudioEngine {
       this.nextNoteTime += sixteenthTime - swingOffset;
     }
 
-    this.currentStep = (this.currentStep + 1) % 16;
+    this.currentStep = (this.currentStep + 1) % this.stepCount;
   }
 
   private scheduleStep(stepNumber: number, time: number) {

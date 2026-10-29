@@ -17,6 +17,8 @@ interface HeaderProps {
   onRandomKit: () => void;
   onRandomBeat: () => void;
   onClear: () => void;
+  stepCount: number;
+  onStepCountChange: (count: number) => void;
   vizMode: VizMode;
   onToggleVizMode: () => void;
 }
@@ -25,6 +27,8 @@ export const Header: React.FC<HeaderProps> = ({
   isPlaying,
   onTogglePlay,
   currentStep,
+  stepCount,
+  onStepCountChange,
   bpm,
   onBpmChange,
   swing,
@@ -39,8 +43,8 @@ export const Header: React.FC<HeaderProps> = ({
   vizMode,
   onToggleVizMode
 }) => {
-  const displayStep = currentStep >= 0 ? currentStep + 1 : 1;
-  const stepText = `${String(displayStep).padStart(2, '0')} / 16`;
+  const displayStep = currentStep >= 0 ? (currentStep % stepCount) + 1 : 1;
+  const stepText = `${String(displayStep).padStart(2, '0')} / ${String(stepCount).padStart(2, '0')}`;
 
   return (
     <header className="bg-[#0e121b] border-b border-slate-800/80 p-3 sm:p-5">
@@ -62,7 +66,7 @@ export const Header: React.FC<HeaderProps> = ({
                   </span>
                 </h1>
               </div>
-              <p className="text-xs text-slate-400">Pure Web Audio Synthesizer & 16-Step Sequencer</p>
+              <p className="text-xs text-slate-400">Pure Web Audio Synthesizer & 16-32 Step Sequencer</p>
             </div>
           </div>
 
@@ -70,7 +74,7 @@ export const Header: React.FC<HeaderProps> = ({
           <Visualizer isPlaying={isPlaying} vizMode={vizMode} onToggleVizMode={onToggleVizMode} />
         </div>
 
-        {/* Transport Controls (Play, Stop, BPM, Swing, Master Vol, Presets) */}
+        {/* Transport Controls (Play, Stop, BPM, Swing, Steps, Master Vol, Presets) */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-4 bg-[#151a26] p-2.5 rounded-xl border border-slate-800/90">
           {/* Play / Stop Button */}
           <button
@@ -101,12 +105,50 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           {/* Step Counter Display */}
-          <div className="bg-[#090c12] border border-slate-800 px-3 py-1.5 rounded-lg text-center min-w-[72px]">
+          <div className="bg-[#090c12] border border-slate-800 px-3 py-1.5 rounded-lg text-center min-w-[76px]">
             <div className="text-[10px] text-slate-500 uppercase font-semibold">STEP</div>
             <div id="stepDisplay" className="font-mono text-base font-bold text-amber-400">{stepText}</div>
           </div>
 
-          {/* BPM Control */}
+          {/* Step Length Selector (16 to 32) */}
+          <div className="flex flex-col gap-1 px-2 border-r border-slate-800/80 pr-3">
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-slate-400 font-medium">LENGTH</span>
+              <span className="font-mono font-bold text-amber-300">{stepCount} STEPS</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <input
+                id="stepCountSlider"
+                type="range"
+                min="16"
+                max="32"
+                step="1"
+                value={stepCount}
+                onChange={(e) => onStepCountChange(parseInt(e.target.value, 10))}
+                className="w-16 sm:w-20 cursor-pointer"
+                title="Kéo chỉnh số bước từ 16 đến 32"
+              />
+              <div className="flex gap-1">
+                {[16, 24, 32].map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => onStepCountChange(num)}
+                    title={`Chuyển sang ${num} bước`}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold transition cursor-pointer ${
+                      stepCount === num
+                        ? 'bg-amber-400 text-slate-950 shadow-sm shadow-amber-400/30'
+                        : 'bg-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {num}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* BPM Control (10 to 200 BPM) */}
           <div className="flex flex-col gap-1 px-2">
             <div className="flex justify-between items-center text-xs">
               <span className="text-slate-400 font-medium">TEMPO</span>
@@ -115,11 +157,12 @@ export const Header: React.FC<HeaderProps> = ({
             <input
               id="bpmSlider"
               type="range"
-              min="60"
+              min="10"
               max="200"
               value={bpm}
               onChange={(e) => onBpmChange(parseInt(e.target.value, 10))}
               className="w-24 sm:w-28 cursor-pointer"
+              title="Chỉnh tốc độ (10 - 200 BPM)"
             />
           </div>
 

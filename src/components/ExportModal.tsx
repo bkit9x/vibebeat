@@ -7,6 +7,7 @@ interface ExportModalProps {
   onClose: () => void;
   tracks: Track[];
   grid: number[][];
+  stepCount: number;
   bpm: number;
   swing: number;
   masterVol: number;
@@ -20,6 +21,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   onClose,
   tracks,
   grid,
+  stepCount,
   bpm,
   swing,
   masterVol,
@@ -43,12 +45,13 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const handleStartExport = async () => {
     setIsExporting(true);
     setProgress(0.05);
-    setStageText('Đang khởi tạo bộ giải mã âm thanh...');
+    setStageText('Đang chuẩn bị mô phỏng âm thanh...');
     setDownloadUrl(null);
 
     const options: ExportOptions = {
       format,
       loops,
+      stepCount,
       includeTail,
       mp3Kbps,
     };
@@ -69,7 +72,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         }
       );
 
-      const filename = `vibebeat_${currentPreset || 'beat'}_${bpm}bpm_${loops}bars.${format}`;
+      const filename = `vibebeat_${currentPreset || 'beat'}_${bpm}bpm_${stepCount}steps_${loops}loops.${format}`;
       const url = URL.createObjectURL(blob);
       setDownloadUrl(url);
       setDownloadFilename(filename);
@@ -167,10 +170,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             </label>
             <div className="grid grid-cols-4 gap-2">
               {[
-                { count: 1, label: '1 Vòng (16 Steps)' },
-                { count: 2, label: '2 Vòng (32 Steps)' },
-                { count: 4, label: '4 Vòng (64 Steps)' },
-                { count: 8, label: '8 Vòng (128 Steps)' },
+                { count: 1, label: `1 Vòng (${stepCount} Steps)` },
+                { count: 2, label: `2 Vòng (${stepCount * 2} Steps)` },
+                { count: 4, label: `4 Vòng (${stepCount * 4} Steps)` },
+                { count: 8, label: `8 Vòng (${stepCount * 8} Steps)` },
               ].map((item) => (
                 <button
                   key={item.count}

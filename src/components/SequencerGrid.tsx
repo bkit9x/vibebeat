@@ -5,6 +5,7 @@ import { SOUND_LIBRARY, PITCHED_MODES, DRUM_MODES } from '../constants/sounds';
 interface SequencerGridProps {
   tracks: Track[];
   grid: number[][];
+  stepCount: number;
   currentPlayingStep: number;
   flashedTrackIndex: number | null;
   customSamples: CustomSample[];
@@ -22,6 +23,7 @@ interface SequencerGridProps {
 export const SequencerGrid: React.FC<SequencerGridProps> = ({
   tracks,
   grid,
+  stepCount,
   currentPlayingStep,
   flashedTrackIndex,
   customSamples,
@@ -54,30 +56,39 @@ export const SequencerGrid: React.FC<SequencerGridProps> = ({
     return sound && sound.pitched ? PITCHED_MODES : DRUM_MODES;
   };
 
+  const minGridWidth = Math.max(1040, 310 + stepCount * 46);
+
   return (
     <main className="p-3 sm:p-5 overflow-x-auto sequencer-scroll">
-      <div className="min-w-[1040px]">
+      <div style={{ minWidth: `${minGridWidth}px` }}>
         {/* Step Number Header Row */}
         <div className="grid grid-cols-[310px_1fr] gap-3 mb-2 items-center">
           <div className="text-xs font-bold uppercase tracking-wider text-slate-400 px-2 flex items-center justify-between">
-            <span>KEY / ĐỔI ÂM THANH (26 SOUNDS + SAMPLES)</span>
+            <span>KEY / ĐỔI ÂM THANH ({stepCount} STEPS)</span>
             <span className="text-[10px] font-mono text-slate-500">TUNE / M / S / VOL</span>
           </div>
 
-          <div className="grid grid-cols-16 gap-1.5">
-            {Array.from({ length: 16 }).map((_, s) => {
+          <div
+            className="grid gap-1.5"
+            style={{ gridTemplateColumns: `repeat(${stepCount}, minmax(0, 1fr))` }}
+          >
+            {Array.from({ length: stepCount }).map((_, s) => {
               const isBeatStart = s % 4 === 0;
+              const isBarStart = s === 16;
               const isCurrent = currentPlayingStep === s;
               return (
                 <div
                   key={s}
-                  className={`text-center font-mono text-[11px] py-1 rounded transition-colors ${
+                  className={`text-center font-mono text-[11px] py-1 rounded transition-colors relative ${
                     isCurrent
                       ? 'bg-amber-400 text-slate-950 font-bold scale-105 shadow-md shadow-amber-400/30'
+                      : isBarStart
+                      ? 'bg-indigo-900/80 text-indigo-300 font-bold border border-indigo-500/60'
                       : isBeatStart
                       ? 'bg-slate-800 text-cyan-300 font-bold border border-slate-700'
                       : 'text-slate-500 font-medium'
                   }`}
+                  title={isBarStart ? 'Bắt đầu Bar 2 (Bước 17)' : undefined}
                 >
                   {String(s + 1).padStart(2, '0')}
                 </div>
@@ -232,12 +243,16 @@ export const SequencerGrid: React.FC<SequencerGridProps> = ({
                   </div>
                 </div>
 
-                {/* Right 16-Step Grid */}
-                <div className="grid grid-cols-16 gap-1.5">
-                  {Array.from({ length: 16 }).map((_, s) => {
+                {/* Right Step Buttons Grid (16 to 32 steps) */}
+                <div
+                  className="grid gap-1.5"
+                  style={{ gridTemplateColumns: `repeat(${stepCount}, minmax(0, 1fr))` }}
+                >
+                  {Array.from({ length: stepCount }).map((_, s) => {
                     const val = grid[tIdx] ? grid[tIdx][s] : 0;
                     const isQuarterGroup = Math.floor(s / 4) % 2 === 0;
                     const isDownbeat = s % 4 === 0;
+                    const isBarBoundary = s === 16;
                     const isPlayingCurrent = currentPlayingStep === s;
 
                     return (

@@ -10,6 +10,7 @@ const lamejs: any = (lamejsModule as any).default || lamejsModule;
 export interface ExportOptions {
   format: 'wav' | 'mp3';
   loops: number; // 1, 2, 4, 8
+  stepCount?: number; // 16 to 32
   includeTail: boolean; // tail reverb/decay
   mp3Kbps?: number; // 128, 192, 320
 }
@@ -28,11 +29,12 @@ export class AudioExporter {
   ): Promise<Blob> {
     onProgress?.(0.1, 'Đang chuẩn bị mô phỏng âm thanh...');
 
+    const stepCount = options.stepCount || 16;
     const sampleRate = 44100;
     const secondsPerBeat = 60.0 / bpm;
     const sixteenthTime = 0.25 * secondsPerBeat;
     const tailSeconds = options.includeTail ? 1.2 : 0.2;
-    const totalSteps = 16 * options.loops;
+    const totalSteps = stepCount * options.loops;
     const totalPatternSeconds = totalSteps * sixteenthTime;
     const totalDuration = totalPatternSeconds + tailSeconds;
 
@@ -79,7 +81,7 @@ export class AudioExporter {
     // Schedule all steps
     let currentTime = 0.02;
     for (let stepIndex = 0; stepIndex < totalSteps; stepIndex++) {
-      const stepInBar = stepIndex % 16;
+      const stepInBar = stepIndex % stepCount;
 
       // Trigger all tracks active on this step
       for (let t = 0; t < tracks.length; t++) {

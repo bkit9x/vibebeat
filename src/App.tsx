@@ -20,8 +20,9 @@ import { Track, FxSettings, VizMode, CustomSample } from './types';
 
 export const App: React.FC = () => {
   const [tracks, setTracks] = useState<Track[]>(INITIAL_TRACKS);
+  const [stepCount, setStepCount] = useState<number>(16);
   const [grid, setGrid] = useState<number[][]>(() =>
-    INITIAL_TRACKS.map(() => new Array(16).fill(0))
+    INITIAL_TRACKS.map(() => new Array(32).fill(0))
   );
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentStep, setCurrentStep] = useState<number>(-1);
@@ -71,8 +72,8 @@ export const App: React.FC = () => {
 
   // Sync engine configuration
   useEffect(() => {
-    audioEngine.updateConfig(tracks, grid, bpm, swing, masterVol / 100, fx);
-  }, [tracks, grid, bpm, swing, masterVol, fx]);
+    audioEngine.updateConfig(tracks, grid, bpm, swing, masterVol / 100, fx, stepCount);
+  }, [tracks, grid, bpm, swing, masterVol, fx, stepCount]);
 
   // Load initial preset (hiphop)
   useEffect(() => {
@@ -86,7 +87,13 @@ export const App: React.FC = () => {
           return soundId && SOUND_LIBRARY[soundId] ? { ...t, soundId } : t;
         })
       );
-      setGrid(preset.pattern.map((row) => [...row]));
+      setGrid(
+        preset.pattern.map((row) => {
+          const padded = new Array(32).fill(0);
+          for (let i = 0; i < row.length; i++) padded[i] = row[i];
+          return padded;
+        })
+      );
     }
   }, []);
 
@@ -303,6 +310,15 @@ export const App: React.FC = () => {
     [customSamples, showToast, tracks, triggerPadFlash]
   );
 
+  const handleStepCountChange = useCallback(
+    (newCount: number) => {
+      const clamped = Math.max(16, Math.min(32, newCount));
+      setStepCount(clamped);
+      showToast(`Đã đổi chiều dài chuỗi nhịp: ${clamped} bước!`, '📏');
+    },
+    [showToast]
+  );
+
   const handleSelectPreset = useCallback(
     (presetKey: string) => {
       const preset = PRESETS[presetKey];
@@ -321,7 +337,13 @@ export const App: React.FC = () => {
         );
       }
 
-      setGrid(preset.pattern.map((row) => [...row]));
+      setGrid(
+        preset.pattern.map((row) => {
+          const padded = new Array(32).fill(0);
+          for (let i = 0; i < row.length; i++) padded[i] = row[i];
+          return padded;
+        })
+      );
       showToast(`Đã tải preset: ${presetKey.toUpperCase()} (${preset.bpm} BPM)`, '🔥');
     },
     [showToast]
@@ -343,28 +365,29 @@ export const App: React.FC = () => {
     audioEngine.init();
     const newGrid: number[][] = [];
     for (let t = 0; t < 10; t++) {
-      newGrid.push(new Array(16).fill(0));
+      newGrid.push(new Array(32).fill(0));
     }
 
-    for (let s = 0; s < 16; s++) {
-      newGrid[0][s] = s === 0 || s === 8 ? 1 : Math.random() < 0.2 ? 1 : 0; // 1: Kick
-      newGrid[1][s] = s === 4 || s === 12 ? 1 : Math.random() < 0.1 ? 2 : 0; // 2: Snare
+    for (let s = 0; s < stepCount; s++) {
+      const isSecondBar = s >= 16;
+      newGrid[0][s] = s % 16 === 0 || s % 16 === 8 ? 1 : Math.random() < 0.2 ? 1 : 0; // 1: Kick
+      newGrid[1][s] = s % 16 === 4 || s % 16 === 12 ? 1 : (isSecondBar && s === 30 ? 2 : Math.random() < 0.1 ? 2 : 0); // 2: Snare
       newGrid[2][s] = s % 2 === 0 ? 1 : Math.random() < 0.35 ? 2 : 0; // 3: Closed Hat
       newGrid[3][s] = s % 4 === 2 && Math.random() < 0.45 ? 1 : 0; // 4: Open Hat
-      newGrid[4][s] = s === 12 && Math.random() < 0.7 ? 1 : Math.random() < 0.08 ? 1 : 0; // 5: Clap
+      newGrid[4][s] = s % 16 === 12 && Math.random() < 0.7 ? 1 : Math.random() < 0.08 ? 1 : 0; // 5: Clap
       newGrid[5][s] = Math.random() < 0.15 ? Math.floor(Math.random() * 3) + 1 : 0; // 6: Tom
       newGrid[6][s] = Math.random() < 0.14 ? Math.floor(Math.random() * 2) + 1 : 0; // 7: Perc/Cowbell
-      newGrid[7][s] = s === 0 ? 1 : Math.random() < 0.28 ? Math.floor(Math.random() * 7) + 1 : 0; // 8: Bass
+      newGrid[7][s] = s % 16 === 0 ? 1 : Math.random() < 0.28 ? Math.floor(Math.random() * 7) + 1 : 0; // 8: Bass
       newGrid[8][s] = Math.random() < 0.22 ? Math.floor(Math.random() * 7) + 1 : 0; // 9: Synth 1
       newGrid[9][s] = Math.random() < 0.18 ? Math.floor(Math.random() * 8) + 1 : 0; // 0: Synth 2
     }
 
     setGrid(newGrid);
-    showToast('🎲 Đã phối ngẫu nhiên nhịp Beat cho 10 rãnh!', '🎲');
-  }, [showToast]);
+    showToast(`🎲 Đã phối ngẫu nhiên nhịp Beat (${stepCount} bước)!`, '🎲');
+  }, [showToast, stepCount]);
 
   const handleClear = useCallback(() => {
-    setGrid(INITIAL_TRACKS.map(() => new Array(16).fill(0)));
+    setGrid(INITIAL_TRACKS.map(() => new Array(32).fill(0)));
     showToast('🗑️ Đã xóa trắng bảng Sequencer.', '🗑️');
   }, [showToast]);
 
@@ -381,14 +404,14 @@ export const App: React.FC = () => {
   const handleSave = useCallback(() => {
     const sounds = tracks.map((t) => t.soundId);
     const tunes = tracks.map((t) => t.tune);
-    const payload = { bpm, swingPercent: swing, sounds, tunes, gridState: grid };
+    const payload = { bpm, swingPercent: swing, stepCount, sounds, tunes, gridState: grid };
     try {
       localStorage.setItem('vibebeat_saved_pattern', JSON.stringify(payload));
       showToast('💾 Đã lưu Beat & Cấu hình 10 phím vào trình duyệt!', '💾');
     } catch {
       showToast('⚠️ Không thể lưu beat.', '⚠️');
     }
-  }, [bpm, grid, showToast, swing, tracks]);
+  }, [bpm, grid, showToast, stepCount, swing, tracks]);
 
   const handleLoad = useCallback(() => {
     const raw = localStorage.getItem('vibebeat_saved_pattern');
@@ -400,6 +423,9 @@ export const App: React.FC = () => {
       const data = JSON.parse(raw);
       if (data.bpm) setBpm(data.bpm);
       if (data.swingPercent !== undefined) setSwing(data.swingPercent);
+      if (data.stepCount) {
+        setStepCount(Math.max(16, Math.min(32, data.stepCount)));
+      }
 
       if (Array.isArray(data.sounds)) {
         setTracks((prev) =>
@@ -422,7 +448,13 @@ export const App: React.FC = () => {
       }
 
       if (Array.isArray(data.gridState) && data.gridState.length === 10) {
-        setGrid(data.gridState);
+        setGrid(
+          data.gridState.map((row: number[]) => {
+            const padded = new Array(32).fill(0);
+            for (let i = 0; i < row.length; i++) padded[i] = row[i];
+            return padded;
+          })
+        );
       }
       showToast('📂 Đã khôi phục Beat & Sound Kit đã lưu!', '📂');
     } catch {
@@ -432,7 +464,8 @@ export const App: React.FC = () => {
 
   const handleExportJson = useCallback(() => {
     const sounds = tracks.map((t) => t.soundId);
-    const jsonStr = JSON.stringify({ bpm, swing, sounds, pattern: grid });
+    const pattern = grid.map((r) => r.slice(0, stepCount));
+    const jsonStr = JSON.stringify({ bpm, swing, stepCount, sounds, pattern });
     navigator.clipboard
       .writeText(jsonStr)
       .then(() => {
@@ -441,7 +474,7 @@ export const App: React.FC = () => {
       .catch(() => {
         showToast('⚠️ Không thể sao chép JSON.', '⚠️');
       });
-  }, [bpm, grid, showToast, swing, tracks]);
+  }, [bpm, grid, showToast, stepCount, swing, tracks]);
 
   // Keyboard Shortcuts (Space, 1-9, 0)
   useEffect(() => {
@@ -478,6 +511,8 @@ export const App: React.FC = () => {
           isPlaying={isPlaying}
           onTogglePlay={handleTogglePlay}
           currentStep={currentStep}
+          stepCount={stepCount}
+          onStepCountChange={handleStepCountChange}
           bpm={bpm}
           onBpmChange={setBpm}
           swing={swing}
@@ -507,6 +542,7 @@ export const App: React.FC = () => {
         <SequencerGrid
           tracks={tracks}
           grid={grid}
+          stepCount={stepCount}
           currentPlayingStep={currentStep}
           flashedTrackIndex={flashedTrack}
           customSamples={customSamples}
@@ -541,6 +577,7 @@ export const App: React.FC = () => {
         onClose={() => setIsExportModalOpen(false)}
         tracks={tracks}
         grid={grid}
+        stepCount={stepCount}
         bpm={bpm}
         swing={swing}
         masterVol={masterVol}
